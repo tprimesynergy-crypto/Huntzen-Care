@@ -114,6 +114,15 @@ class ApiClient {
   async getEmployeeMe() {
     return this.request<any>('/employees/me');
   }
+
+  // News
+  async getNews() {
+    return this.request<any[]>('/news');
+  }
+
+  logout() {
+    this.setToken(null);
+  }
 }
 
 export const api = new ApiClient(API_URL);
