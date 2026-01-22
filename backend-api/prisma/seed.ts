@@ -191,8 +191,9 @@ async function main() {
     },
   ];
 
+  const createdConsultations: { id: string }[] = [];
   for (const c of consults) {
-    await prisma.consultation.create({
+    const cons = await prisma.consultation.create({
       data: {
         companyId: company.id,
         employeeId: employeeMarc.id,
@@ -205,8 +206,30 @@ async function main() {
         roomName: c.roomName,
       },
     });
+    createdConsultations.push(cons);
   }
   console.log('  ✓ Consultations created (2 upcoming, 1 completed)');
+
+  // Messages for first consultation
+  if (createdConsultations[0]) {
+    await prisma.message.createMany({
+      data: [
+        {
+          consultationId: createdConsultations[0].id,
+          senderId: userSophie.id,
+          senderRole: 'PRACTITIONER',
+          content: 'Bonjour Marc, n\'oubliez pas de pratiquer les exercices de respiration avant notre séance.',
+        },
+        {
+          consultationId: createdConsultations[0].id,
+          senderId: userMarc.id,
+          senderRole: 'EMPLOYEE',
+          content: 'Merci Dr. Martin, je m\'y mets dès ce soir.',
+        },
+      ],
+    });
+    console.log('  ✓ Messages created');
+  }
 
   // 6. News (company-specific)
   const newsItems = [
@@ -266,6 +289,31 @@ async function main() {
     },
   });
   console.log('  ✓ Journal entries created');
+
+  // 8. Notifications (Marc)
+  await prisma.notification.createMany({
+    data: [
+      {
+        userId: userMarc.id,
+        type: 'CONSULTATION_REMINDER_24H',
+        title: 'Rappel consultation',
+        message: 'Votre séance avec Dr. Sophie Martin est prévue demain.',
+        linkUrl: null,
+        linkLabel: null,
+        isRead: false,
+      },
+      {
+        userId: userMarc.id,
+        type: 'NEWS_PUBLISHED',
+        title: 'Nouvel article',
+        message: 'Un nouvel article bien-être est disponible.',
+        linkUrl: null,
+        linkLabel: null,
+        isRead: false,
+      },
+    ],
+  });
+  console.log('  ✓ Notifications created');
 
   console.log('\n✅ Seed completed!\n');
   console.log('Login credentials:');

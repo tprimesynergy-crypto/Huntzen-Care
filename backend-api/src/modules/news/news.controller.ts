@@ -1,4 +1,4 @@
-import { Controller, Get, UseGuards, Request } from '@nestjs/common';
+import { Controller, Get, Param, UseGuards, Request } from '@nestjs/common';
 import { NewsService } from './news.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
@@ -10,5 +10,10 @@ export class NewsController {
   @Get()
   async findAll(@Request() req: { user: { companyId?: string } }) {
     return this.newsService.findByCompany(req.user.companyId ?? null);
+  }
+
+  @Get(':id')
+  async findOne(@Param('id') id: string, @Request() req: { user: { companyId?: string } }) {
+    return this.newsService.findOne(id, req.user.companyId ?? null);
   }
 }

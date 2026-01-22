@@ -19,6 +19,7 @@ import { LandingPage } from '@/app/components/marketing/LandingPage';
 import { PrivacyPolicy } from '@/app/components/legal/PrivacyPolicy';
 import { PractitionerBilling } from '@/app/components/admin/PractitionerBilling';
 import { EmployeeUsage } from '@/app/components/admin/EmployeeUsage';
+import { ArticlePage } from '@/app/components/employee/ArticlePage';
 import { api } from '@/app/services/api';
 
 export default function App() {
@@ -26,9 +27,15 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [showEmergencyModal, setShowEmergencyModal] = useState(false);
   const [selectedPractitionerId, setSelectedPractitionerId] = useState<string | null>(null);
+  const [selectedArticleId, setSelectedArticleId] = useState<string | null>(null);
 
   useEffect(() => {
     setIsLoggedIn(!!localStorage.getItem('auth_token'));
+  }, []);
+
+  useEffect(() => {
+    api.setOnUnauthorized(() => setIsLoggedIn(false));
+    return () => api.setOnUnauthorized(null);
   }, []);
 
   const handleViewPractitionerProfile = (practitionerId: string) => {
@@ -39,7 +46,12 @@ export default function App() {
   const renderContent = () => {
     switch (activeTab) {
       case 'dashboard':
-        return <EmployeeDashboard />;
+        return (
+          <EmployeeDashboard
+            onNavigate={setActiveTab}
+            onViewArticle={handleViewArticle}
+          />
+        );
       case 'practitioners':
         return <FindPractitioner onViewProfile={handleViewPractitionerProfile} />;
       case 'appointments':
@@ -73,6 +85,13 @@ export default function App() {
         return <LandingPage />;
       case 'privacy':
         return <PrivacyPolicy />;
+      case 'article':
+        return (
+          <ArticlePage
+            articleId={selectedArticleId ?? ''}
+            onBack={() => setActiveTab('news')}
+          />
+        );
       default:
         return <EmployeeDashboard />;
     }

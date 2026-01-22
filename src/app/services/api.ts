@@ -3,6 +3,7 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 class ApiClient {
   private baseURL: string;
   private token: string | null = null;
+  private onUnauthorized: (() => void) | null = null;
 
   constructor(baseURL: string) {
     this.baseURL = baseURL;
@@ -10,6 +11,10 @@ class ApiClient {
     if (typeof window !== 'undefined') {
       this.token = localStorage.getItem('auth_token');
     }
+  }
+
+  setOnUnauthorized(callback: (() => void) | null) {
+    this.onUnauthorized = callback;
   }
 
   setToken(token: string | null) {
@@ -54,6 +59,10 @@ class ApiClient {
     }
 
     if (!response.ok) {
+      if (response.status === 401 && this.token) {
+        this.setToken(null);
+        this.onUnauthorized?.();
+      }
       const error = await response.json().catch(() => ({ message: 'An error occurred' }));
       throw new Error((error as { message?: string }).message || `HTTP error! status: ${response.status}`);
     }
@@ -133,6 +142,10 @@ class ApiClient {
   // News
   async getNews() {
     return this.request<any[]>('/news');
+  }
+
+  async getNewsArticle(id: string) {
+    return this.request<any>(`/news/${id}`);
   }
 
   // Journal

@@ -4,6 +4,7 @@ import { Calendar, MessageSquare, BookOpen, TrendingUp, Heart, Clock } from 'luc
 import { Button } from '@/app/components/ui/button';
 import { api } from '@/app/services/api';
 
+/** Structure only (icon, label, color). value/subValue are overwritten from API in loadAll. */
 const STATS_TEMPLATE = [
   { icon: Calendar, label: 'Prochaine séance', value: 'Aucune séance', subValue: 'Prenez un rendez-vous', color: 'bg-primary' },
   { icon: MessageSquare, label: 'Messages', value: '0 nouveau', subValue: 'Aucun message', color: 'bg-secondary' },
@@ -11,7 +12,12 @@ const STATS_TEMPLATE = [
   { icon: TrendingUp, label: 'Progression', value: '—', subValue: 'Humeur ce mois-ci', color: 'bg-[#F39C12]' },
 ];
 
-export function EmployeeDashboard() {
+interface EmployeeDashboardProps {
+  onNavigate?: (tab: string) => void;
+  onViewArticle?: (articleId: string) => void;
+}
+
+export function EmployeeDashboard({ onNavigate, onViewArticle }: EmployeeDashboardProps) {
   const [employee, setEmployee] = useState<{ firstName: string; lastName: string } | null>(null);
   const [upcomingAppointments, setUpcomingAppointments] = useState<any[]>([]);
   const [stats, setStats] = useState(STATS_TEMPLATE);
@@ -92,6 +98,8 @@ export function EmployeeDashboard() {
       console.error('Error loading dashboard:', e);
       setUpcomingAppointments([]);
       setNewsArticles([]);
+      setEmployee(null);
+      setStats(STATS_TEMPLATE);
     } finally {
       setLoading(false);
     }
@@ -140,7 +148,9 @@ export function EmployeeDashboard() {
                 <Calendar className="w-5 h-5 text-primary" />
                 Mes prochaines séances
               </h2>
-              <Button variant="ghost" size="sm">Voir tout</Button>
+              <Button variant="ghost" size="sm" onClick={() => onNavigate?.('appointments')}>
+                Voir tout
+              </Button>
             </div>
             <div className="space-y-4">
               {loading ? (
@@ -181,7 +191,11 @@ export function EmployeeDashboard() {
                 ))
               )}
             </div>
-            <Button variant="outline" className="w-full mt-4">
+            <Button
+              variant="outline"
+              className="w-full mt-4"
+              onClick={() => onNavigate?.('practitioners')}
+            >
               <Heart className="w-4 h-4 mr-2" />
               Prendre un nouveau rendez-vous
             </Button>
@@ -190,19 +204,35 @@ export function EmployeeDashboard() {
           <Card className="p-6">
             <h2 className="text-xl font-semibold mb-4">Actions rapides</h2>
             <div className="grid grid-cols-2 gap-4">
-              <Button variant="outline" className="h-20 flex flex-col items-center justify-center gap-2">
+              <Button
+                variant="outline"
+                className="h-20 flex flex-col items-center justify-center gap-2"
+                onClick={() => onNavigate?.('practitioners')}
+              >
                 <Heart className="w-6 h-6 text-primary" />
                 <span className="text-sm">Trouver un praticien</span>
               </Button>
-              <Button variant="outline" className="h-20 flex flex-col items-center justify-center gap-2">
+              <Button
+                variant="outline"
+                className="h-20 flex flex-col items-center justify-center gap-2"
+                onClick={() => onNavigate?.('journal')}
+              >
                 <BookOpen className="w-6 h-6 text-[#5CB85C]" />
                 <span className="text-sm">Mon journal</span>
               </Button>
-              <Button variant="outline" className="h-20 flex flex-col items-center justify-center gap-2">
+              <Button
+                variant="outline"
+                className="h-20 flex flex-col items-center justify-center gap-2"
+                onClick={() => onNavigate?.('messages')}
+              >
                 <MessageSquare className="w-6 h-6 text-secondary" />
                 <span className="text-sm">Messages</span>
               </Button>
-              <Button variant="outline" className="h-20 flex flex-col items-center justify-center gap-2">
+              <Button
+                variant="outline"
+                className="h-20 flex flex-col items-center justify-center gap-2"
+                onClick={() => onNavigate?.('profile')}
+              >
                 <TrendingUp className="w-6 h-6 text-[#F39C12]" />
                 <span className="text-sm">Ma progression</span>
               </Button>
@@ -221,7 +251,14 @@ export function EmployeeDashboard() {
                 <p className="text-sm text-muted-foreground py-4">Aucun article pour le moment.</p>
               ) : (
                 newsArticles.map((article) => (
-                  <div key={article.id} className="group cursor-pointer">
+                  <div
+                    key={article.id}
+                    role="button"
+                    tabIndex={0}
+                    className="group cursor-pointer"
+                    onClick={() => (onViewArticle ? onViewArticle(article.id) : onNavigate?.('news'))}
+                    onKeyDown={(e) => e.key === 'Enter' && (onViewArticle ? onViewArticle(article.id) : onNavigate?.('news'))}
+                  >
                     <img
                       src={article.image}
                       alt={article.title}
@@ -237,7 +274,9 @@ export function EmployeeDashboard() {
                 ))
               )}
             </div>
-            <Button variant="link" className="w-full mt-4 text-primary">Voir tous les articles →</Button>
+            <Button variant="link" className="w-full mt-4 text-primary" onClick={() => onNavigate?.('news')}>
+              Voir tous les articles →
+            </Button>
           </Card>
         </div>
       </div>

@@ -11,12 +11,7 @@ interface SidebarProps {
 }
 
 export function Sidebar({ activeTab, onTabChange, onEmergencyClick, onLogout }: SidebarProps) {
-  const [unreadCount, setUnreadCount] = useState(0);
   const [userDisplay, setUserDisplay] = useState<{ name: string; initials: string } | null>(null);
-
-  useEffect(() => {
-    api.getUnreadNotificationsCount().then(setUnreadCount).catch(() => {});
-  }, []);
 
   useEffect(() => {
     api.getEmployeeMe().then((e: any) => {
@@ -39,7 +34,7 @@ export function Sidebar({ activeTab, onTabChange, onEmergencyClick, onLogout }: 
     { id: 'dashboard', label: 'Tableau de Bord', icon: Home },
     { id: 'appointments', label: 'Mes Rendez-vous', icon: Calendar },
     { id: 'practitioners', label: 'Trouver un Praticien', icon: Heart },
-    { id: 'messages', label: 'Messages', icon: MessageSquare, badge: unreadCount },
+    { id: 'messages', label: 'Messages', icon: MessageSquare },
     { id: 'journal', label: 'Mon Journal', icon: BookOpen },
     { id: 'news', label: 'Actualités Bien-être', icon: Bell },
   ];

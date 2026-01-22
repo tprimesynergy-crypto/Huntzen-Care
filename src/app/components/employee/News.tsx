@@ -1,10 +1,13 @@
 import { useState, useEffect } from 'react';
 import { Card } from '@/app/components/ui/card';
-import { Button } from '@/app/components/ui/button';
 import { BookOpen, Clock } from 'lucide-react';
 import { api } from '@/app/services/api';
 
-export function News() {
+interface NewsProps {
+  onViewArticle?: (articleId: string) => void;
+}
+
+export function News({ onViewArticle }: NewsProps) {
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -40,7 +43,13 @@ export function News() {
       ) : (
         <>
           {featured && (
-            <Card className="overflow-hidden hover:shadow-lg transition-shadow cursor-pointer">
+            <Card
+              className="overflow-hidden hover:shadow-lg transition-shadow cursor-pointer"
+              onClick={() => onViewArticle?.(featured.id)}
+              onKeyDown={(e) => e.key === 'Enter' && onViewArticle?.(featured.id)}
+              role="button"
+              tabIndex={0}
+            >
               <div className="grid grid-cols-1 md:grid-cols-2 gap-0">
                 <img
                   src={featured.imageUrl || defaultImg}
@@ -70,7 +79,9 @@ export function News() {
                           : '—'}
                       </span>
                     </div>
-                    <Button className="bg-primary hover:bg-primary/90">Lire l&apos;article</Button>
+                    <span className="inline-flex items-center justify-center rounded-md text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2">
+                      Lire l&apos;article
+                    </span>
                   </div>
                 </div>
               </div>
@@ -79,7 +90,14 @@ export function News() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {rest.map((article) => (
-              <Card key={article.id} className="overflow-hidden hover:shadow-lg transition-shadow cursor-pointer group">
+              <Card
+                key={article.id}
+                className="overflow-hidden hover:shadow-lg transition-shadow cursor-pointer group"
+                onClick={() => onViewArticle?.(article.id)}
+                onKeyDown={(e) => e.key === 'Enter' && onViewArticle?.(article.id)}
+                role="button"
+                tabIndex={0}
+              >
                 <img
                   src={article.imageUrl || defaultImg}
                   alt={article.title}
@@ -103,9 +121,7 @@ export function News() {
                         ? new Date(article.publishedAt).toLocaleDateString('fr-FR')
                         : '—'}
                     </span>
-                    <Button variant="ghost" size="sm" className="text-primary hover:text-primary/80">
-                      Lire plus →
-                    </Button>
+                    <span className="text-primary hover:text-primary/80 font-medium">Lire plus →</span>
                   </div>
                 </div>
               </Card>

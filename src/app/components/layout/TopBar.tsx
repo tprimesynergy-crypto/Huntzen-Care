@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { Bell, Search, Building2, LogOut } from 'lucide-react';
 import { Input } from '@/app/components/ui/input';
 import { Button } from '@/app/components/ui/button';
@@ -13,6 +14,13 @@ interface TopBarProps {
 export function TopBar({ onViewCompany, onLogout }: TopBarProps) {
   const [userDisplay, setUserDisplay] = useState<{ name: string; role: string; initials: string } | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [notificationsLoading, setNotificationsLoading] = useState(false);
+
+  const refreshUnread = useCallback(() => {
+    api.getUnreadNotificationsCount().then(setUnreadCount).catch(() => {});
+  }, []);
 
   useEffect(() => {
     api.getEmployeeMe().then((e: any) => {
@@ -37,8 +45,27 @@ export function TopBar({ onViewCompany, onLogout }: TopBarProps) {
   }, []);
 
   useEffect(() => {
-    api.getUnreadNotificationsCount().then(setUnreadCount).catch(() => {});
-  }, []);
+    refreshUnread();
+  }, [refreshUnread]);
+
+  useEffect(() => {
+    if (!notificationsOpen) return;
+    setNotificationsLoading(true);
+    api.getNotifications()
+      .then((list) => setNotifications(Array.isArray(list) ? list : []))
+      .catch(() => setNotifications([]))
+      .finally(() => setNotificationsLoading(false));
+  }, [notificationsOpen]);
+
+  const handleMarkRead = async (id: string) => {
+    try {
+      await api.markNotificationRead(id);
+      setNotifications((prev) =>
+        prev.map((n) => (n.id === id ? { ...n, isRead: true } : n))
+      );
+      refreshUnread();
+    } catch {}
+  };
 
   return (
     <div className="h-16 bg-white dark:bg-[#1a1f2e] border-b border-border flex items-center justify-between px-6 transition-colors">
@@ -59,12 +86,76 @@ export function TopBar({ onViewCompany, onLogout }: TopBarProps) {
           Mon entreprise
         </Button>
         <ThemeToggle />
-        <Button variant="ghost" size="icon" className="relative">
-          <Bell className="w-5 h-5" />
-          {unreadCount > 0 && (
-            <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
-          )}
-        </Button>
+        <div className="relative">
+          <button
+            type="button"
+            title="Notifications"
+            onClick={() => setNotificationsOpen((prev) => !prev)}
+            className="inline-flex size-9 shrink-0 items-center justify-center rounded-md hover:bg-accent hover:text-accent-foreground transition-colors relative"
+          >
+            <Bell className="w-5 h-5" />
+            {unreadCount > 0 && (
+              <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" aria-hidden />
+            )}
+          </button>
+          {notificationsOpen &&
+            createPortal(
+              <>
+                <button
+                  type="button"
+                  className="fixed inset-0 z-[99] cursor-default"
+                  onClick={() => setNotificationsOpen(false)}
+                  aria-label="Fermer les notifications"
+                />
+                <div
+                  className="fixed right-6 top-[4.5rem] z-[100] w-80 rounded-md border border-border bg-background text-foreground shadow-lg overflow-hidden"
+                  role="dialog"
+                  aria-label="Notifications"
+                >
+                  <div className="p-3 border-b border-border">
+                    <h3 className="font-semibold text-sm">Notifications</h3>
+                  </div>
+                  <div className="max-h-80 overflow-y-auto">
+                    {notificationsLoading ? (
+                      <div className="p-4 text-center text-sm text-muted-foreground">
+                        Chargement…
+                      </div>
+                    ) : notifications.length === 0 ? (
+                      <div className="p-4 text-center text-sm text-muted-foreground">
+                        Aucune notification.
+                      </div>
+                    ) : (
+                      <div className="divide-y divide-border">
+                        {notifications.map((n) => (
+                          <button
+                            key={n.id}
+                            type="button"
+                            onClick={() => !n.isRead && handleMarkRead(n.id)}
+                            className={`w-full text-left p-3 hover:bg-muted/50 transition-colors ${!n.isRead ? 'bg-primary/5' : ''}`}
+                          >
+                            <p className="text-sm font-medium truncate">{n.title}</p>
+                            <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">{n.message}</p>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              {n.createdAt
+                                ? new Date(n.createdAt).toLocaleDateString('fr-FR', {
+                                    day: 'numeric',
+                                    month: 'short',
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                  })
+                                : ''}
+                            </p>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </>,
+              document.body,
+              'notifications-dropdown'
+            )}
+        </div>
         <div className="flex items-center gap-3">
           <div className="text-right">
             <p className="text-sm font-medium">{userDisplay?.name ?? '…'}</p>
