@@ -34,17 +34,28 @@ class ApiClient {
     };
 
     if (this.token) {
-      headers['Authorization'] = `Bearer ${this.token}`;
+      (headers as Record<string, string>)['Authorization'] = `Bearer ${this.token}`;
     }
 
-    const response = await fetch(url, {
-      ...options,
-      headers,
-    });
+    let response: Response;
+    try {
+      response = await fetch(url, {
+        ...options,
+        headers,
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : '';
+      if (msg === 'Failed to fetch' || msg.includes('Load failed') || msg.includes('NetworkError')) {
+        throw new Error(
+          `Impossible de joindre l'API (${this.baseURL}). Vérifiez que le backend tourne (npm run start:dev dans backend-api).`
+        );
+      }
+      throw err;
+    }
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({ message: 'An error occurred' }));
-      throw new Error(error.message || `HTTP error! status: ${response.status}`);
+      throw new Error((error as { message?: string }).message || `HTTP error! status: ${response.status}`);
     }
 
     return response.json();

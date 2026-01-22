@@ -78,8 +78,9 @@ export function Login({ onLoginSuccess }: LoginProps) {
           </Button>
         </form>
 
-        <p className="text-xs text-muted-foreground mt-6 text-center">
-          Démo : utilisez marc@huntzen-demo.com / Password123!
+        <p className="text-xs text-muted-foreground mt-6 text-center space-y-1">
+          <span className="block">Démo : utilisez marc@huntzen-demo.com / Password123!</span>
+          <span className="block">Backend requis : <code className="bg-muted px-1 rounded">cd backend-api</code> puis <code className="bg-muted px-1 rounded">npm run start:dev</code></span>
         </p>
       </Card>
     </div>
