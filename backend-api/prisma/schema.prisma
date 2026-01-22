@@ -1,0 +1,483 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================
+// 1. AUTHENTIFICATION & UTILISATEURS
+// ============================================================
+
+model User {
+  id              String    @id @default(uuid())
+  email           String    @unique
+  passwordHash    String
+  role            Role      @default(EMPLOYEE)
+  isActive        Boolean   @default(true)
+  emailVerified   Boolean   @default(false)
+  emailVerifiedAt DateTime?
+  
+  // 2FA
+  twoFactorEnabled Boolean  @default(false)
+  twoFactorSecret  String?
+  
+  // Multi-tenant
+  companyId       String?
+  company         Company?  @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  
+  // Timestamps
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  lastLoginAt     DateTime?
+  
+  // Relations
+  employee        Employee?
+  practitioner    Practitioner?
+  refreshTokens   RefreshToken[]
+  notifications   Notification[]
+  
+  @@index([email])
+  @@index([companyId])
+  @@index([role])
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  
+  @@index([token])
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+enum Role {
+  SUPER_ADMIN
+  ADMIN_HUNTZEN
+  ADMIN_RH
+  PRACTITIONER
+  EMPLOYEE
+}
+
+// ============================================================
+// 2. ENTREPRISES (MULTI-TENANT)
+// ============================================================
+
+model Company {
+  id              String       @id @default(uuid())
+  name            String
+  slug            String       @unique
+  legalName       String?
+  siret           String?      @unique
+  
+  // Informations
+  sector          String?
+  address         String?
+  city            String?
+  country         String       @default("France")
+  
+  // Branding
+  logoUrl         String?
+  coverUrl        String?
+  
+  // Validation
+  isActive        Boolean   @default(false)
+  validatedAt     DateTime?
+  
+  // Timestamps
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  // Relations
+  users           User[]
+  employees       Employee[]
+  consultations   Consultation[]
+  news            News[]
+  
+  @@index([slug])
+  @@index([isActive])
+  @@map("companies")
+}
+
+// ============================================================
+// 3. EMPLOYÉS
+// ============================================================
+
+model Employee {
+  id              String    @id @default(uuid())
+  userId          String    @unique
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  companyId       String
+  company         Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  
+  // Informations personnelles
+  firstName       String
+  lastName        String
+  department      String?
+  position        String?
+  phoneNumber     String?
+  
+  // Profil
+  bio             String?   @db.Text
+  avatarUrl       String?
+  coverUrl        String?
+  
+  // Timestamps
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  // Relations
+  consultations   Consultation[]
+  journalEntries  JournalEntry[]
+  
+  @@index([companyId])
+  @@index([userId])
+  @@map("employees")
+}
+
+// ============================================================
+// 4. PRATICIENS
+// ============================================================
+
+model Practitioner {
+  id              String    @id @default(uuid())
+  userId          String    @unique
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Identité professionnelle
+  firstName       String
+  lastName        String
+  title           String    // Dr., Mme., M.
+  professionalId  String?   @unique
+  
+  // Spécialisation
+  specialty       Specialty
+  subSpecialties  String[]
+  languages       String[]
+  
+  // Profil public
+  bio             String    @db.Text
+  experience      Int?
+  education       String?   @db.Text
+  
+  // Médias
+  avatarUrl       String?
+  coverUrl        String?
+  
+  // Formats proposés
+  offersVideo     Boolean   @default(true)
+  offersPhone     Boolean   @default(true)
+  
+  // Validation
+  isValidated     Boolean   @default(false)
+  validatedAt     DateTime?
+  
+  // Paramètres consultation
+  defaultDuration Int       @default(50)
+  timezone        String    @default("Europe/Paris")
+  
+  // Disponibilité
+  isActive        Boolean   @default(true)
+  isAcceptingNewClients Boolean @default(true)
+  
+  // Timestamps
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  // Relations
+  availabilities  Availability[]
+  consultations   Consultation[]
+  clinicalNotes   ClinicalNote[]
+  
+  @@index([specialty])
+  @@index([isValidated])
+  @@index([isActive])
+  @@map("practitioners")
+}
+
+enum Specialty {
+  PSYCHOLOGUE_CLINICIEN
+  PSYCHOLOGUE_TRAVAIL
+  PSYCHIATRE
+  PSYCHOTHERAPEUTE
+  NEUROPSYCHOLOGUE
+  COACH_MENTAL
+  SEXOLOGUE
+  PSYCHANALYSTE
+}
+
+// ============================================================
+// 5. DISPONIBILITÉS
+// ============================================================
+
+model Availability {
+  id              String    @id @default(uuid())
+  practitionerId  String
+  practitioner    Practitioner @relation(fields: [practitionerId], references: [id], onDelete: Cascade)
+  
+  // Type
+  type            AvailabilityType @default(RECURRING)
+  
+  // Récurrent
+  dayOfWeek       Int?      // 0=Dimanche, 1=Lundi, ..., 6=Samedi
+  startTime       String?   // "09:00"
+  endTime         String?   // "17:00"
+  
+  // Exception
+  date            DateTime?
+  isAvailable     Boolean   @default(true)
+  
+  // Durée des créneaux
+  slotDuration    Int       @default(50)
+  
+  isActive        Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  @@index([practitionerId])
+  @@index([dayOfWeek])
+  @@index([date])
+  @@map("availabilities")
+}
+
+enum AvailabilityType {
+  RECURRING
+  EXCEPTION
+}
+
+// ============================================================
+// 6. CONSULTATIONS
+// ============================================================
+
+model Consultation {
+  id              String    @id @default(uuid())
+  
+  // Multi-tenant
+  companyId       String
+  company         Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  
+  // Participants
+  employeeId      String
+  employee        Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  
+  practitionerId  String
+  practitioner    Practitioner @relation(fields: [practitionerId], references: [id], onDelete: Cascade)
+  
+  // Planification
+  scheduledAt     DateTime
+  scheduledEndAt  DateTime
+  duration        Int       @default(50)
+  
+  // Format
+  format          ConsultationFormat
+  
+  // Statut
+  status          ConsultationStatus @default(SCHEDULED)
+  
+  // Horodatage RÉEL
+  startedAt       DateTime?
+  endedAt         DateTime?
+  actualDuration  Int?
+  
+  // Annulation
+  cancelledAt     DateTime?
+  cancelledBy     String?
+  cancelReason    String?   @db.Text
+  
+  // Salle Jitsi
+  roomName        String?   @unique
+  
+  // Notes
+  notes           String?   @db.Text
+  
+  // Timestamps
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  // Relations
+  messages        Message[]
+  clinicalNotes   ClinicalNote[]
+  
+  @@index([companyId])
+  @@index([employeeId])
+  @@index([practitionerId])
+  @@index([scheduledAt])
+  @@index([status])
+  @@map("consultations")
+}
+
+enum ConsultationFormat {
+  VIDEO
+  AUDIO
+  IN_PERSON
+}
+
+enum ConsultationStatus {
+  SCHEDULED
+  CONFIRMED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
+// ============================================================
+// 7. CHAT MESSAGES
+// ============================================================
+
+model Message {
+  id              String    @id @default(uuid())
+  consultationId  String
+  consultation    Consultation @relation(fields: [consultationId], references: [id], onDelete: Cascade)
+  
+  senderId        String
+  senderRole      Role
+  
+  // Contenu
+  content         String    @db.Text
+  
+  // Métadonnées
+  messageType     MessageType @default(TEXT)
+  isRead          Boolean   @default(false)
+  readAt          DateTime?
+  
+  createdAt       DateTime  @default(now())
+  
+  @@index([consultationId])
+  @@index([senderId])
+  @@index([createdAt])
+  @@map("messages")
+}
+
+enum MessageType {
+  TEXT
+  IMAGE
+  FILE
+}
+
+// ============================================================
+// 8. NOTES CLINIQUES
+// ============================================================
+
+model ClinicalNote {
+  id              String    @id @default(uuid())
+  consultationId  String
+  consultation    Consultation @relation(fields: [consultationId], references: [id], onDelete: Cascade)
+  
+  practitionerId  String
+  practitioner    Practitioner @relation(fields: [practitionerId], references: [id], onDelete: Cascade)
+  
+  // Contenu
+  content         String    @db.Text
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  @@index([consultationId])
+  @@index([practitionerId])
+  @@map("clinical_notes")
+}
+
+// ============================================================
+// 9. JOURNAL PERSONNEL
+// ============================================================
+
+model JournalEntry {
+  id              String    @id @default(uuid())
+  employeeId      String
+  employee        Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  
+  // Contenu
+  content         String    @db.Text
+  mood            Mood?
+  tags            String[]
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  @@index([employeeId])
+  @@index([createdAt])
+  @@map("journal_entries")
+}
+
+enum Mood {
+  VERY_BAD
+  BAD
+  NEUTRAL
+  GOOD
+  VERY_GOOD
+}
+
+// ============================================================
+// 10. NEWS INTERNES
+// ============================================================
+
+model News {
+  id              String    @id @default(uuid())
+  companyId       String
+  company         Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  
+  title           String
+  content         String    @db.Text
+  imageUrl        String?
+  
+  publishedAt     DateTime  @default(now())
+  authorId        String
+  authorName      String
+  
+  viewCount       Int       @default(0)
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  @@index([companyId])
+  @@index([publishedAt])
+  @@map("news")
+}
+
+// ============================================================
+// 11. NOTIFICATIONS
+// ============================================================
+
+model Notification {
+  id              String    @id @default(uuid())
+  userId          String
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  type            NotificationType
+  title           String
+  message         String    @db.Text
+  
+  linkUrl         String?
+  linkLabel       String?
+  
+  isRead          Boolean   @default(false)
+  readAt          DateTime?
+  
+  createdAt       DateTime  @default(now())
+  
+  @@index([userId])
+  @@index([isRead])
+  @@index([createdAt])
+  @@map("notifications")
+}
+
+enum NotificationType {
+  CONSULTATION_CONFIRMED
+  CONSULTATION_CANCELLED
+  CONSULTATION_REMINDER_24H
+  MESSAGE_RECEIVED
+  NEWS_PUBLISHED
+  SYSTEM
+}
