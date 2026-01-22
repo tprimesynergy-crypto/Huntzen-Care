@@ -6,6 +6,10 @@ import { ConsultationsModule } from './modules/consultations/consultations.modul
 import { PractitionersModule } from './modules/practitioners/practitioners.module';
 import { EmployeesModule } from './modules/employees/employees.module';
 import { NewsModule } from './modules/news/news.module';
+import { JournalModule } from './modules/journal/journal.module';
+import { MessagesModule } from './modules/messages/messages.module';
+import { CompanyModule } from './modules/company/company.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
 
 @Module({
   imports: [
@@ -18,6 +22,10 @@ import { NewsModule } from './modules/news/news.module';
     PractitionersModule,
     EmployeesModule,
     NewsModule,
+    JournalModule,
+    MessagesModule,
+    CompanyModule,
+    NotificationsModule,
   ],
 })
 export class AppModule {}

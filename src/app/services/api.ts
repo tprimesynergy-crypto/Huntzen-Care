@@ -117,6 +117,10 @@ class ApiClient {
     return this.request<any>(`/practitioners/${id}`);
   }
 
+  async getPractitionerMe() {
+    return this.request<any>('/practitioners/me');
+  }
+
   async getPractitionerAvailability(id: string) {
     return this.request<any[]>(`/practitioners/${id}/availability`);
   }
@@ -129,6 +133,61 @@ class ApiClient {
   // News
   async getNews() {
     return this.request<any[]>('/news');
+  }
+
+  // Journal
+  async getJournal() {
+    return this.request<any[]>('/journal');
+  }
+
+  async getJournalStats() {
+    return this.request<{ total: number; avgMood: number | null; streak: number }>('/journal/stats');
+  }
+
+  async createJournalEntry(data: { content: string; mood?: string; tags?: string[] }) {
+    return this.request<any>('/journal', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteJournalEntry(id: string) {
+    return this.request<{ ok: boolean }>(`/journal/${id}`, { method: 'DELETE' });
+  }
+
+  // Messages
+  async getConversations() {
+    return this.request<any[]>('/messages/conversations');
+  }
+
+  async getMessages(consultationId: string) {
+    return this.request<any[]>(`/messages/consultations/${consultationId}`);
+  }
+
+  async sendMessage(consultationId: string, content: string) {
+    return this.request<any>('/messages', {
+      method: 'POST',
+      body: JSON.stringify({ consultationId, content }),
+    });
+  }
+
+  // Company
+  async getCompany() {
+    return this.request<any>('/company');
+  }
+
+  // Notifications
+  async getNotifications() {
+    return this.request<any[]>('/notifications');
+  }
+
+  async getUnreadNotificationsCount() {
+    const r = await this.request<{ count: number }>('/notifications/unread-count');
+    return r.count ?? 0;
+  }
+
+  async markNotificationRead(id: string) {
+    return this.request<any>(`/notifications/${id}/read`, { method: 'PATCH' });
   }
 
   logout() {

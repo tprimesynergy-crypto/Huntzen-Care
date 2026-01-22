@@ -63,4 +63,16 @@ export class PractitionersService {
       ],
     });
   }
+
+  async findMeByUserId(userId: string) {
+    const p = await this.prisma.practitioner.findUnique({
+      where: { userId },
+      include: {
+        user: { select: { id: true, email: true } },
+        availabilities: { where: { isActive: true } },
+      },
+    });
+    if (!p) throw new NotFoundException('Practitioner not found');
+    return p;
+  }
 }

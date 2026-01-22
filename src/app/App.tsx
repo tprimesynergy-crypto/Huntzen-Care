@@ -25,13 +25,13 @@ export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [showEmergencyModal, setShowEmergencyModal] = useState(false);
-  const [selectedPractitionerId, setSelectedPractitionerId] = useState<number | null>(null);
+  const [selectedPractitionerId, setSelectedPractitionerId] = useState<string | null>(null);
 
   useEffect(() => {
     setIsLoggedIn(!!localStorage.getItem('auth_token'));
   }, []);
 
-  const handleViewPractitionerProfile = (practitionerId: number) => {
+  const handleViewPractitionerProfile = (practitionerId: string) => {
     setSelectedPractitionerId(practitionerId);
     setActiveTab('practitioner-profile');
   };
@@ -56,7 +56,7 @@ export default function App() {
         return <MyProfile />;
       case 'practitioner-profile':
         return <PractitionerProfile 
-          practitionerId={selectedPractitionerId || 1}
+          practitionerId={selectedPractitionerId ?? ''}
           onClose={() => setActiveTab('practitioners')}
         />;
       case 'company-profile':
@@ -98,6 +98,10 @@ export default function App() {
         activeTab={activeTab} 
         onTabChange={setActiveTab}
         onEmergencyClick={() => setShowEmergencyModal(true)}
+        onLogout={() => {
+          api.logout();
+          setIsLoggedIn(false);
+        }}
       />
 
       {/* Main Content */}
