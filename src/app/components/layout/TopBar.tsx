@@ -8,10 +8,11 @@ import { api } from '@/app/services/api';
 
 interface TopBarProps {
   onViewCompany?: () => void;
+  onViewProfile?: () => void;
   onLogout?: () => void;
 }
 
-export function TopBar({ onViewCompany, onLogout }: TopBarProps) {
+export function TopBar({ onViewCompany, onViewProfile, onLogout }: TopBarProps) {
   const [userDisplay, setUserDisplay] = useState<{ name: string; role: string; initials: string } | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
@@ -157,13 +158,20 @@ export function TopBar({ onViewCompany, onLogout }: TopBarProps) {
             )}
         </div>
         <div className="flex items-center gap-3">
-          <div className="text-right">
-            <p className="text-sm font-medium">{userDisplay?.name ?? '…'}</p>
-            <p className="text-xs text-muted-foreground">{userDisplay?.role ?? '…'}</p>
-          </div>
-          <div className="w-10 h-10 bg-primary rounded-full flex items-center justify-center text-white font-semibold">
-            {userDisplay?.initials ?? '…'}
-          </div>
+          <button
+            type="button"
+            onClick={onViewProfile}
+            className="flex items-center gap-3 rounded-md hover:bg-accent/50 transition-colors -m-2 p-2"
+            title="Mon profil"
+          >
+            <div className="text-right">
+              <p className="text-sm font-medium">{userDisplay?.name ?? '…'}</p>
+              <p className="text-xs text-muted-foreground">{userDisplay?.role ?? '…'}</p>
+            </div>
+            <div className="w-10 h-10 bg-primary rounded-full flex items-center justify-center text-white font-semibold shrink-0">
+              {userDisplay?.initials ?? '…'}
+            </div>
+          </button>
           {onLogout && (
             <Button variant="ghost" size="icon" onClick={onLogout} title="Déconnexion">
               <LogOut className="w-4 h-4" />

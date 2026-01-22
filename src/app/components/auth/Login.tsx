@@ -80,7 +80,7 @@ export function Login({ onLoginSuccess }: LoginProps) {
 
         <p className="text-xs text-muted-foreground mt-6 text-center space-y-1">
           <span className="block">Démo : utilisez marc@huntzen-demo.com / Password123!</span>
-          <span className="block">Backend requis : <code className="bg-muted px-1 rounded">cd backend-api</code> puis <code className="bg-muted px-1 rounded">npm run start:dev</code></span>
+          <span className="block">Backend requis : <code className="bg-muted px-1 rounded">npm run dev:all</code> (frontend + API) ou <code className="bg-muted px-1 rounded">cd backend-api && npm run start:dev</code></span>
         </p>
       </Card>
     </div>

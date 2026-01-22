@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useLayoutEffect } from 'react';
 import { Sidebar } from '@/app/components/layout/Sidebar';
 import { TopBar } from '@/app/components/layout/TopBar';
 import { EmergencyModal } from '@/app/components/layout/EmergencyModal';
@@ -24,23 +24,43 @@ import { api } from '@/app/services/api';
 
 export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [sessionChecked, setSessionChecked] = useState(false);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [showEmergencyModal, setShowEmergencyModal] = useState(false);
   const [selectedPractitionerId, setSelectedPractitionerId] = useState<string | null>(null);
   const [selectedArticleId, setSelectedArticleId] = useState<string | null>(null);
 
-  useEffect(() => {
-    setIsLoggedIn(!!localStorage.getItem('auth_token'));
+  useLayoutEffect(() => {
+    api.setOnUnauthorized(() => setIsLoggedIn(false));
   }, []);
 
   useEffect(() => {
-    api.setOnUnauthorized(() => setIsLoggedIn(false));
-    return () => api.setOnUnauthorized(null);
+    const token = localStorage.getItem('auth_token');
+    if (!token) {
+      setSessionChecked(true);
+      setIsLoggedIn(false);
+      return;
+    }
+    api.getMe()
+      .then(() => {
+        setSessionChecked(true);
+        setIsLoggedIn(true);
+      })
+      .catch(() => {
+        api.logout();
+        setSessionChecked(true);
+        setIsLoggedIn(false);
+      });
   }, []);
 
   const handleViewPractitionerProfile = (practitionerId: string) => {
     setSelectedPractitionerId(practitionerId);
     setActiveTab('practitioner-profile');
+  };
+
+  const handleViewArticle = (articleId: string) => {
+    setSelectedArticleId(articleId);
+    setActiveTab('article');
   };
 
   const renderContent = () => {
@@ -61,7 +81,7 @@ export default function App() {
       case 'messages':
         return <Messages />;
       case 'news':
-        return <News />;
+        return <News onViewArticle={handleViewArticle} />;
       case 'settings':
         return <Settings />;
       case 'profile':
@@ -97,6 +117,14 @@ export default function App() {
     }
   };
 
+  if (!sessionChecked) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-background">
+        <p className="text-muted-foreground">Chargement…</p>
+      </div>
+    );
+  }
+
   if (!isLoggedIn) {
     return (
       <Login
@@ -128,6 +156,7 @@ export default function App() {
         {/* Top Bar */}
         <TopBar
           onViewCompany={() => setActiveTab('company-profile')}
+          onViewProfile={() => setActiveTab('profile')}
           onLogout={() => {
             api.logout();
             setIsLoggedIn(false);

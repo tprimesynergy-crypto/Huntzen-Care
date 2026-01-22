@@ -1,4 +1,5 @@
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+const API_URL = import.meta.env.VITE_API_URL
+  || (import.meta.env.DEV ? '/api' : 'http://localhost:3000');
 
 class ApiClient {
   private baseURL: string;
@@ -49,17 +50,29 @@ class ApiClient {
         headers,
       });
     } catch (err) {
+      const isMeRequest = endpoint === '/auth/me' || endpoint === '/employees/me';
+      if (isMeRequest && this.token) {
+        this.setToken(null);
+        this.onUnauthorized?.();
+      }
       const msg = err instanceof Error ? err.message : '';
       if (msg === 'Failed to fetch' || msg.includes('Load failed') || msg.includes('NetworkError')) {
+        const backendHint = this.baseURL.startsWith('/')
+          ? 'http://localhost:3000'
+          : this.baseURL;
         throw new Error(
-          `Impossible de joindre l'API (${this.baseURL}). Vérifiez que le backend tourne (npm run start:dev dans backend-api).`
+          `Impossible de joindre l'API (${backendHint}). Vérifiez que le backend tourne : cd backend-api puis npm run start:dev.`
         );
       }
       throw err;
     }
 
     if (!response.ok) {
+      const isMeRequest = endpoint === '/auth/me' || endpoint === '/employees/me';
       if (response.status === 401 && this.token) {
+        this.setToken(null);
+        this.onUnauthorized?.();
+      } else if (isMeRequest && this.token) {
         this.setToken(null);
         this.onUnauthorized?.();
       }
