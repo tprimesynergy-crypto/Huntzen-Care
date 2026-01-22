@@ -38,8 +38,11 @@ export function EmployeeDashboard() {
     },
   ]);
 
+  const [newsArticles, setNewsArticles] = useState<{ id: string; title: string; category: string; readTime: string; image: string }[]>([]);
+
   useEffect(() => {
     loadConsultations();
+    loadNews();
   }, []);
 
   const loadConsultations = async () => {
@@ -93,22 +96,23 @@ export function EmployeeDashboard() {
     }
   };
 
-  const newsArticles = [
-    {
-      id: 1,
-      title: '5 techniques de respiration pour gérer le stress au travail',
-      category: 'Bien-être',
-      readTime: '3 min',
-      image: 'https://images.unsplash.com/photo-1506126613408-eca07ce68773?w=400',
-    },
-    {
-      id: 2,
-      title: 'Comment améliorer la qualité de votre sommeil',
-      category: 'Santé',
-      readTime: '5 min',
-      image: 'https://images.unsplash.com/photo-1541781774459-bb2af2f05b55?w=400',
-    },
-  ];
+  const loadNews = async () => {
+    try {
+      const items = await api.getNews();
+      setNewsArticles(
+        items.map((n: { id: string; title: string; content: string; imageUrl?: string | null }) => ({
+          id: n.id,
+          title: n.title,
+          category: 'Bien-être',
+          readTime: `${Math.max(1, Math.ceil((n.content?.length || 0) / 200))} min`,
+          image: n.imageUrl || 'https://images.unsplash.com/photo-1506126613408-eca07ce68773?w=400',
+        }))
+      );
+    } catch (e) {
+      console.error('Error loading news:', e);
+      setNewsArticles([]);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -247,23 +251,27 @@ export function EmployeeDashboard() {
               Actualités bien-être
             </h2>
             <div className="space-y-4">
-              {newsArticles.map((article) => (
-                <div key={article.id} className="group cursor-pointer">
-                  <img
-                    src={article.image}
-                    alt={article.title}
-                    className="w-full h-32 object-cover rounded-lg mb-2 group-hover:opacity-90 transition-opacity"
-                  />
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
-                    <span className="text-primary">{article.category}</span>
-                    <span>•</span>
-                    <span>{article.readTime}</span>
+              {newsArticles.length === 0 ? (
+                <p className="text-sm text-muted-foreground py-4">Aucun article pour le moment.</p>
+              ) : (
+                newsArticles.map((article) => (
+                  <div key={article.id} className="group cursor-pointer">
+                    <img
+                      src={article.image}
+                      alt={article.title}
+                      className="w-full h-32 object-cover rounded-lg mb-2 group-hover:opacity-90 transition-opacity"
+                    />
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
+                      <span className="text-primary">{article.category}</span>
+                      <span>•</span>
+                      <span>{article.readTime}</span>
+                    </div>
+                    <h3 className="text-sm font-medium group-hover:text-primary transition-colors">
+                      {article.title}
+                    </h3>
                   </div>
-                  <h3 className="text-sm font-medium group-hover:text-primary transition-colors">
-                    {article.title}
-                  </h3>
-                </div>
-              ))}
+                ))
+              )}
             </div>
             <Button variant="link" className="w-full mt-4 text-primary">
               Voir tous les articles →

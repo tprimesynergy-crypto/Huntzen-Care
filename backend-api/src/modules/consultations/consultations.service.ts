@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { ConsultationFormat } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateConsultationDto } from './dto/create-consultation.dto';
 
@@ -18,7 +19,7 @@ export class ConsultationsService {
         scheduledAt: new Date(dto.scheduledAt),
         scheduledEndAt: new Date(dto.scheduledEndAt),
         duration: dto.duration || 50,
-        format: dto.format || 'VIDEO',
+        format: (dto.format as ConsultationFormat) || ConsultationFormat.VIDEO,
         status: 'SCHEDULED',
         roomName,
       },

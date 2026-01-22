@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Sidebar } from '@/app/components/layout/Sidebar';
 import { TopBar } from '@/app/components/layout/TopBar';
 import { EmergencyModal } from '@/app/components/layout/EmergencyModal';
+import { Login } from '@/app/components/auth/Login';
 import { EmployeeDashboard } from '@/app/components/employee/EmployeeDashboard';
 import { FindPractitioner } from '@/app/components/employee/FindPractitioner';
 import { MyAppointments } from '@/app/components/employee/MyAppointments';
@@ -18,11 +19,17 @@ import { LandingPage } from '@/app/components/marketing/LandingPage';
 import { PrivacyPolicy } from '@/app/components/legal/PrivacyPolicy';
 import { PractitionerBilling } from '@/app/components/admin/PractitionerBilling';
 import { EmployeeUsage } from '@/app/components/admin/EmployeeUsage';
+import { api } from '@/app/services/api';
 
 export default function App() {
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [showEmergencyModal, setShowEmergencyModal] = useState(false);
   const [selectedPractitionerId, setSelectedPractitionerId] = useState<number | null>(null);
+
+  useEffect(() => {
+    setIsLoggedIn(!!localStorage.getItem('auth_token'));
+  }, []);
 
   const handleViewPractitionerProfile = (practitionerId: number) => {
     setSelectedPractitionerId(practitionerId);
@@ -71,6 +78,14 @@ export default function App() {
     }
   };
 
+  if (!isLoggedIn) {
+    return (
+      <Login
+        onLoginSuccess={() => setIsLoggedIn(true)}
+      />
+    );
+  }
+
   return (
     <div className="flex h-screen bg-background overflow-hidden">
       {/* Emergency Modal */}
@@ -88,7 +103,13 @@ export default function App() {
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Top Bar */}
-        <TopBar onViewCompany={() => setActiveTab('company-profile')} />
+        <TopBar
+          onViewCompany={() => setActiveTab('company-profile')}
+          onLogout={() => {
+            api.logout();
+            setIsLoggedIn(false);
+          }}
+        />
 
         {/* Content Area */}
         <main className="flex-1 overflow-y-auto p-6">

@@ -1,13 +1,14 @@
-import { Bell, Search, Building2 } from 'lucide-react';
+import { Bell, Search, Building2, LogOut } from 'lucide-react';
 import { Input } from '@/app/components/ui/input';
 import { Button } from '@/app/components/ui/button';
 import { ThemeToggle } from '@/app/components/layout/ThemeToggle';
 
 interface TopBarProps {
   onViewCompany?: () => void;
+  onLogout?: () => void;
 }
 
-export function TopBar({ onViewCompany }: TopBarProps) {
+export function TopBar({ onViewCompany, onLogout }: TopBarProps) {
   return (
     <div className="h-16 bg-white dark:bg-[#1a1f2e] border-b border-border flex items-center justify-between px-6 transition-colors">
       {/* Search Bar */}
@@ -53,6 +54,11 @@ export function TopBar({ onViewCompany }: TopBarProps) {
           <div className="w-10 h-10 bg-primary rounded-full flex items-center justify-center text-white font-semibold">
             M
           </div>
+          {onLogout && (
+            <Button variant="ghost" size="icon" onClick={onLogout} title="Déconnexion">
+              <LogOut className="w-4 h-4" />
+            </Button>
+          )}
         </div>
       </div>
     </div>

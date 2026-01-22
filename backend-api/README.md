@@ -50,7 +50,18 @@ npm run prisma:migrate
 
 # (Optionnel) Ouvrir Prisma Studio pour voir les données
 npm run prisma:studio
+
+# Ensemencer la base avec des données de démo
+npm run prisma:seed
 ```
+
+**Comptes de démo après le seed :**
+
+| Rôle        | Email                          | Mot de passe   |
+|------------|----------------------------------|----------------|
+| Employé    | marc@huntzen-demo.com           | Password123!   |
+| Praticien  | sophie.martin@huntzen-care.com  | Password123!   |
+| Praticien  | thomas.bernard@huntzen-care.com | Password123!   |
 
 ### 5. Démarrer le serveur
 

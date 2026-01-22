@@ -1,6 +1,7 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
+import { Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
@@ -19,7 +20,7 @@ export class AuthService {
       data: {
         email: dto.email,
         passwordHash: hashedPassword,
-        role: dto.role || 'EMPLOYEE',
+        role: (dto.role as Role) || Role.EMPLOYEE,
         companyId: dto.companyId,
       },
     });
