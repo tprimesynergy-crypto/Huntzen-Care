@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Card } from '@/app/components/ui/card';
 import { Button } from '@/app/components/ui/button';
 import { Input } from '@/app/components/ui/input';
@@ -20,26 +20,39 @@ function formatMessageTime(d: string | Date): string {
   return date.toLocaleDateString('fr-FR');
 }
 
-export function Messages() {
+interface MessagesProps {
+  preselectConsultationId?: string | null;
+  onPreselectUsed?: () => void;
+}
+
+export function Messages({ preselectConsultationId, onPreselectUsed }: MessagesProps) {
   const [conversations, setConversations] = useState<any[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [messages, setMessages] = useState<any[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
+  const preselectRef = useRef<string | null>(null);
+  preselectRef.current = preselectConsultationId ?? null;
 
   const loadConversations = useCallback(async () => {
+    const preselectAtStart = preselectRef.current;
     try {
       const list = await api.getConversations();
       const arr = Array.isArray(list) ? list : [];
       setConversations(arr);
-      setSelectedId((prev) => (prev ? prev : arr[0]?.id ?? null));
+      if (preselectAtStart && arr.some((c: { id: string }) => c.id === preselectAtStart)) {
+        setSelectedId(preselectAtStart);
+        onPreselectUsed?.();
+      } else {
+        setSelectedId((prev) => (prev ? prev : arr[0]?.id ?? null));
+      }
     } catch {
       setConversations([]);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [onPreselectUsed]);
 
   useEffect(() => {
     loadConversations();

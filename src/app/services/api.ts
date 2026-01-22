@@ -130,6 +130,10 @@ class ApiClient {
     });
   }
 
+  async cancelConsultation(id: string) {
+    return this.request<any>(`/consultations/${id}/cancel`, { method: 'PATCH' });
+  }
+
   // Practitioners
   async getPractitioners() {
     return this.request<any[]>('/practitioners');
@@ -150,6 +154,22 @@ class ApiClient {
   // Employees
   async getEmployeeMe() {
     return this.request<any>('/employees/me');
+  }
+
+  async updateEmployeeMe(data: {
+    firstName?: string;
+    lastName?: string;
+    department?: string;
+    position?: string;
+    phoneNumber?: string;
+    bio?: string;
+    avatarUrl?: string;
+    coverUrl?: string;
+  }) {
+    return this.request<any>('/employees/me', {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
   }
 
   // News

@@ -10,9 +10,10 @@ interface TopBarProps {
   onViewCompany?: () => void;
   onViewProfile?: () => void;
   onLogout?: () => void;
+  profileRefreshKey?: number;
 }
 
-export function TopBar({ onViewCompany, onViewProfile, onLogout }: TopBarProps) {
+export function TopBar({ onViewCompany, onViewProfile, onLogout, profileRefreshKey }: TopBarProps) {
   const [userDisplay, setUserDisplay] = useState<{ name: string; role: string; initials: string } | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
@@ -43,7 +44,7 @@ export function TopBar({ onViewCompany, onViewProfile, onLogout }: TopBarProps) 
         });
       }).catch(() => setUserDisplay(null));
     });
-  }, []);
+  }, [profileRefreshKey]);
 
   useEffect(() => {
     refreshUnread();

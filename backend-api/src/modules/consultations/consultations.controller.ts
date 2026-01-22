@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, UseGuards, Request } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Body, Param, UseGuards, Request } from '@nestjs/common';
 import { ConsultationsService } from './consultations.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CreateConsultationDto } from './dto/create-consultation.dto';
@@ -25,5 +25,10 @@ export class ConsultationsController {
   @Get(':id')
   async findOne(@Param('id') id: string, @Request() req) {
     return this.consultationsService.findOne(id, req.user.id, req.user.role);
+  }
+
+  @Patch(':id/cancel')
+  async cancel(@Param('id') id: string, @Request() req) {
+    return this.consultationsService.cancel(id, req.user.id, req.user.role);
   }
 }

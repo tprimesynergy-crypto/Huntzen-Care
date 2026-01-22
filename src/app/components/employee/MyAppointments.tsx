@@ -1,48 +1,59 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Card } from '@/app/components/ui/card';
 import { Button } from '@/app/components/ui/button';
 import { Calendar, Clock, Video, MessageSquare, Star } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/app/components/ui/tabs';
 import { api } from '@/app/services/api';
 
-export function MyAppointments() {
+interface MyAppointmentsProps {
+  onNavigate?: (tab: string) => void;
+  onNavigateToMessages?: (consultationId: string) => void;
+}
+
+function normalize(list: any[], now: Date) {
+  const arr = Array.isArray(list) ? list : [];
+  const up = arr
+    .filter((c: any) => new Date(c.scheduledAt) >= now && c.status !== 'CANCELLED')
+    .sort((a: any, b: any) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime())
+    .map((c: any) => ({
+      id: c.id,
+      practitioner: `${c.practitioner?.title || ''} ${c.practitioner?.firstName} ${c.practitioner?.lastName}`.trim(),
+      specialty: c.practitioner?.specialty ?? '',
+      date: new Date(c.scheduledAt).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }),
+      time: `${new Date(c.scheduledAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })} - ${new Date(c.scheduledEndAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`,
+      type: c.format === 'VIDEO' ? 'Visioconférence' : c.format === 'AUDIO' ? 'Appel audio' : 'En personne',
+      status: c.status === 'CONFIRMED' ? 'confirmed' : 'scheduled',
+      avatar: `${c.practitioner?.firstName?.[0] || ''}${c.practitioner?.lastName?.[0] || ''}`.toUpperCase(),
+      roomName: c.roomName,
+      canJoin: (new Date(c.scheduledAt).getTime() - now.getTime()) / (60 * 1000) <= 10,
+    }));
+  const pa = arr
+    .filter((c: any) => new Date(c.scheduledAt) < now || c.status === 'CANCELLED')
+    .sort((a: any, b: any) => new Date(b.scheduledAt).getTime() - new Date(a.scheduledAt).getTime())
+    .map((c: any) => ({
+      id: c.id,
+      practitioner: `${c.practitioner?.title || ''} ${c.practitioner?.firstName} ${c.practitioner?.lastName}`.trim(),
+      specialty: c.practitioner?.specialty ?? '',
+      date: new Date(c.scheduledAt).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }),
+      time: `${new Date(c.scheduledAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })} - ${new Date(c.scheduledEndAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`,
+      type: c.format === 'VIDEO' ? 'Visioconférence' : c.format === 'AUDIO' ? 'Appel audio' : 'En personne',
+      status: 'completed',
+      avatar: `${c.practitioner?.firstName?.[0] || ''}${c.practitioner?.lastName?.[0] || ''}`.toUpperCase(),
+      rated: false,
+    }));
+  return { up, pa };
+}
+
+export function MyAppointments({ onNavigate, onNavigateToMessages }: MyAppointmentsProps) {
   const [upcoming, setUpcoming] = useState<any[]>([]);
   const [past, setPast] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
 
-  useEffect(() => {
+  const load = useCallback(() => {
+    setLoading(true);
     api.getConsultations().then((list) => {
-      const arr = Array.isArray(list) ? list : [];
-      const now = new Date();
-      const up = arr
-        .filter((c: any) => new Date(c.scheduledAt) >= now && c.status !== 'CANCELLED')
-        .sort((a: any, b: any) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime())
-        .map((c: any) => ({
-          id: c.id,
-          practitioner: `${c.practitioner?.title || ''} ${c.practitioner?.firstName} ${c.practitioner?.lastName}`.trim(),
-          specialty: c.practitioner?.specialty ?? '',
-          date: new Date(c.scheduledAt).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }),
-          time: `${new Date(c.scheduledAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })} - ${new Date(c.scheduledEndAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`,
-          type: c.format === 'VIDEO' ? 'Visioconférence' : c.format === 'AUDIO' ? 'Appel audio' : 'En personne',
-          status: c.status === 'CONFIRMED' ? 'confirmed' : 'scheduled',
-          avatar: `${c.practitioner?.firstName?.[0] || ''}${c.practitioner?.lastName?.[0] || ''}`.toUpperCase(),
-          roomName: c.roomName,
-          canJoin: (new Date(c.scheduledAt).getTime() - now.getTime()) / (60 * 1000) <= 10,
-        }));
-      const pa = arr
-        .filter((c: any) => new Date(c.scheduledAt) < now || c.status === 'CANCELLED')
-        .sort((a: any, b: any) => new Date(b.scheduledAt).getTime() - new Date(a.scheduledAt).getTime())
-        .map((c: any) => ({
-          id: c.id,
-          practitioner: `${c.practitioner?.title || ''} ${c.practitioner?.firstName} ${c.practitioner?.lastName}`.trim(),
-          specialty: c.practitioner?.specialty ?? '',
-          date: new Date(c.scheduledAt).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }),
-          time: `${new Date(c.scheduledAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })} - ${new Date(c.scheduledEndAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`,
-          type: c.format === 'VIDEO' ? 'Visioconférence' : c.format === 'AUDIO' ? 'Appel audio' : 'En personne',
-          status: 'completed',
-          avatar: `${c.practitioner?.firstName?.[0] || ''}${c.practitioner?.lastName?.[0] || ''}`.toUpperCase(),
-          rated: false,
-        }));
+      const { up, pa } = normalize(list, new Date());
       setUpcoming(up);
       setPast(pa);
     }).catch(() => {
@@ -50,6 +61,10 @@ export function MyAppointments() {
       setPast([]);
     }).finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
 
   return (
     <div className="space-y-6">
@@ -74,7 +89,9 @@ export function MyAppointments() {
               <p className="text-muted-foreground mb-4">
                 Prenez rendez-vous avec un praticien pour commencer votre accompagnement.
               </p>
-              <Button className="bg-primary hover:bg-primary/90">Trouver un praticien</Button>
+              <Button className="bg-primary hover:bg-primary/90" onClick={() => onNavigate?.('practitioners')}>
+                Trouver un praticien
+              </Button>
             </Card>
           ) : (
             upcoming.map((a) => (
@@ -118,13 +135,34 @@ export function MyAppointments() {
                       >
                         <Video className="w-4 h-4 mr-2" /> Rejoindre la séance
                       </Button>
-                      <Button variant="outline">
+                      <Button
+                        variant="outline"
+                        onClick={() => (onNavigateToMessages ? onNavigateToMessages(a.id) : onNavigate?.('messages'))}
+                      >
                         <MessageSquare className="w-4 h-4 mr-2" /> Envoyer un message
                       </Button>
-                      <Button variant="outline">
+                      <Button variant="outline" onClick={() => onNavigate?.('practitioners')}>
                         <Calendar className="w-4 h-4 mr-2" /> Reprogrammer
                       </Button>
-                      <Button variant="ghost" className="text-destructive">Annuler</Button>
+                      <Button
+                        variant="ghost"
+                        className="text-destructive"
+                        disabled={cancellingId === a.id}
+                        onClick={async () => {
+                          if (!window.confirm('Annuler ce rendez-vous ?')) return;
+                          setCancellingId(a.id);
+                          try {
+                            await api.cancelConsultation(a.id);
+                            await load();
+                          } catch (e) {
+                            console.error(e);
+                          } finally {
+                            setCancellingId(null);
+                          }
+                        }}
+                      >
+                        {cancellingId === a.id ? 'Annulation…' : 'Annuler'}
+                      </Button>
                     </div>
                     {!a.canJoin && (
                       <div className="mt-4 p-3 bg-muted/50 rounded-lg">
@@ -180,14 +218,20 @@ export function MyAppointments() {
                     </div>
                     <div className="flex flex-wrap gap-3 pt-4 border-t border-border">
                       {!a.rated && (
-                        <Button className="bg-[#F39C12] hover:bg-[#F39C12]/90">
+                        <Button
+                          className="bg-[#F39C12] hover:bg-[#F39C12]/90"
+                          onClick={() => window.alert('L\'évaluation des séances sera bientôt disponible.')}
+                        >
                           <Star className="w-4 h-4 mr-2" /> Évaluer cette séance
                         </Button>
                       )}
-                      <Button className="bg-primary hover:bg-primary/90">
+                      <Button className="bg-primary hover:bg-primary/90" onClick={() => onNavigate?.('practitioners')}>
                         <Calendar className="w-4 h-4 mr-2" /> Reprendre RDV
                       </Button>
-                      <Button variant="outline">
+                      <Button
+                        variant="outline"
+                        onClick={() => (onNavigateToMessages ? onNavigateToMessages(a.id) : onNavigate?.('messages'))}
+                      >
                         <MessageSquare className="w-4 h-4 mr-2" /> Envoyer un message
                       </Button>
                     </div>

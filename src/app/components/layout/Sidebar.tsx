@@ -8,9 +8,10 @@ interface SidebarProps {
   onTabChange: (tab: string) => void;
   onEmergencyClick: () => void;
   onLogout?: () => void;
+  profileRefreshKey?: number;
 }
 
-export function Sidebar({ activeTab, onTabChange, onEmergencyClick, onLogout }: SidebarProps) {
+export function Sidebar({ activeTab, onTabChange, onEmergencyClick, onLogout, profileRefreshKey }: SidebarProps) {
   const [userDisplay, setUserDisplay] = useState<{ name: string; initials: string } | null>(null);
 
   useEffect(() => {
@@ -28,7 +29,7 @@ export function Sidebar({ activeTab, onTabChange, onEmergencyClick, onLogout }: 
         });
       }).catch(() => setUserDisplay(null));
     });
-  }, []);
+  }, [profileRefreshKey]);
 
   const menuItems = [
     { id: 'dashboard', label: 'Tableau de Bord', icon: Home },

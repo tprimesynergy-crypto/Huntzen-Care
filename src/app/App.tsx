@@ -29,6 +29,8 @@ export default function App() {
   const [showEmergencyModal, setShowEmergencyModal] = useState(false);
   const [selectedPractitionerId, setSelectedPractitionerId] = useState<string | null>(null);
   const [selectedArticleId, setSelectedArticleId] = useState<string | null>(null);
+  const [profileRefreshKey, setProfileRefreshKey] = useState(0);
+  const [messagesPreselectConsultationId, setMessagesPreselectConsultationId] = useState<string | null>(null);
 
   useLayoutEffect(() => {
     api.setOnUnauthorized(() => setIsLoggedIn(false));
@@ -63,6 +65,11 @@ export default function App() {
     setActiveTab('article');
   };
 
+  const handleNavigateToMessages = (consultationId: string) => {
+    setMessagesPreselectConsultationId(consultationId);
+    setActiveTab('messages');
+  };
+
   const renderContent = () => {
     switch (activeTab) {
       case 'dashboard':
@@ -75,17 +82,27 @@ export default function App() {
       case 'practitioners':
         return <FindPractitioner onViewProfile={handleViewPractitionerProfile} />;
       case 'appointments':
-        return <MyAppointments />;
+        return (
+          <MyAppointments
+            onNavigate={setActiveTab}
+            onNavigateToMessages={handleNavigateToMessages}
+          />
+        );
       case 'journal':
         return <MyJournal />;
       case 'messages':
-        return <Messages />;
+        return (
+          <Messages
+            preselectConsultationId={messagesPreselectConsultationId}
+            onPreselectUsed={() => setMessagesPreselectConsultationId(null)}
+          />
+        );
       case 'news':
         return <News onViewArticle={handleViewArticle} />;
       case 'settings':
         return <Settings />;
       case 'profile':
-        return <MyProfile />;
+        return <MyProfile onProfileUpdated={() => setProfileRefreshKey((k) => k + 1)} />;
       case 'practitioner-profile':
         return <PractitionerProfile 
           practitionerId={selectedPractitionerId ?? ''}
@@ -149,6 +166,7 @@ export default function App() {
           api.logout();
           setIsLoggedIn(false);
         }}
+        profileRefreshKey={profileRefreshKey}
       />
 
       {/* Main Content */}
@@ -161,6 +179,7 @@ export default function App() {
             api.logout();
             setIsLoggedIn(false);
           }}
+          profileRefreshKey={profileRefreshKey}
         />
 
         {/* Content Area */}

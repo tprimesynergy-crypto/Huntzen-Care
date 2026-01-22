@@ -153,4 +153,19 @@ export class ConsultationsService {
 
     return consultation;
   }
+
+  async cancel(id: string, userId: string, userRole: string) {
+    const consultation = await this.findOne(id, userId, userRole);
+    if (consultation.status === 'CANCELLED') {
+      return consultation;
+    }
+    return this.prisma.consultation.update({
+      where: { id },
+      data: { status: 'CANCELLED' },
+      include: {
+        employee: { include: { user: { select: { id: true, email: true } } } },
+        practitioner: { include: { user: { select: { id: true, email: true } } } },
+      },
+    });
+  }
 }
