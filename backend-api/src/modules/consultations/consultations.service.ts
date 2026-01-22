@@ -168,4 +168,30 @@ export class ConsultationsService {
       },
     });
   }
+
+  async reschedule(
+    id: string,
+    userId: string,
+    userRole: string,
+    dto: { scheduledAt: string; scheduledEndAt: string },
+  ) {
+    const consultation = await this.findOne(id, userId, userRole);
+    if (consultation.status === 'CANCELLED') {
+      throw new NotFoundException('Cannot reschedule a cancelled consultation');
+    }
+    const duration =
+      (new Date(dto.scheduledEndAt).getTime() - new Date(dto.scheduledAt).getTime()) / (60 * 1000);
+    return this.prisma.consultation.update({
+      where: { id },
+      data: {
+        scheduledAt: new Date(dto.scheduledAt),
+        scheduledEndAt: new Date(dto.scheduledEndAt),
+        duration: Math.round(duration),
+      },
+      include: {
+        employee: { include: { user: { select: { id: true, email: true } } } },
+        practitioner: { include: { user: { select: { id: true, email: true } } } },
+      },
+    });
+  }
 }

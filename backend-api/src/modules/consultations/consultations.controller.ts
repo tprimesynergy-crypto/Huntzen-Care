@@ -2,6 +2,7 @@ import { Controller, Get, Post, Patch, Body, Param, UseGuards, Request } from '@
 import { ConsultationsService } from './consultations.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CreateConsultationDto } from './dto/create-consultation.dto';
+import { RescheduleConsultationDto } from './dto/reschedule-consultation.dto';
 
 @Controller('consultations')
 @UseGuards(JwtAuthGuard)
@@ -30,5 +31,19 @@ export class ConsultationsController {
   @Patch(':id/cancel')
   async cancel(@Param('id') id: string, @Request() req) {
     return this.consultationsService.cancel(id, req.user.id, req.user.role);
+  }
+
+  @Patch(':id/reschedule')
+  async reschedule(
+    @Param('id') id: string,
+    @Request() req,
+    @Body() dto: RescheduleConsultationDto,
+  ) {
+    return this.consultationsService.reschedule(
+      id,
+      req.user.id,
+      req.user.role,
+      dto,
+    );
   }
 }

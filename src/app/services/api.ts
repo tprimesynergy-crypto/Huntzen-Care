@@ -68,16 +68,30 @@ class ApiClient {
     }
 
     if (!response.ok) {
-      const isMeRequest = endpoint === '/auth/me' || endpoint === '/employees/me';
       if (response.status === 401 && this.token) {
         this.setToken(null);
         this.onUnauthorized?.();
-      } else if (isMeRequest && this.token) {
-        this.setToken(null);
-        this.onUnauthorized?.();
       }
-      const error = await response.json().catch(() => ({ message: 'An error occurred' }));
-      throw new Error((error as { message?: string }).message || `HTTP error! status: ${response.status}`);
+      const backendUnreachable =
+        response.status === 502 ||
+        response.status === 503 ||
+        response.status === 504;
+      if (backendUnreachable) {
+        const hint = this.baseURL.startsWith('/') ? 'http://localhost:3000' : this.baseURL;
+        throw new Error(
+          `L'API est injoignable (${hint}). Lancez le backend : \`npm run dev:all\` ou \`cd backend-api && npm run start:dev\`.`
+        );
+      }
+      const error = await response.json().catch(() => null);
+      let msg: string;
+      if (error && typeof (error as { message?: unknown }).message === 'string') {
+        msg = (error as { message: string }).message;
+      } else if (error && Array.isArray((error as { message?: unknown }).message)) {
+        msg = (error as { message: string[] }).message.join('. ');
+      } else {
+        msg = `Erreur HTTP ${response.status}`;
+      }
+      throw new Error(msg);
     }
 
     return response.json();
@@ -85,12 +99,16 @@ class ApiClient {
 
   // Auth
   async login(email: string, password: string) {
-    const data = await this.request<{ accessToken: string; user: any }>('/auth/login', {
+    const data = await this.request<{ accessToken?: string; user?: unknown }>('/auth/login', {
       method: 'POST',
       body: JSON.stringify({ email, password }),
     });
-    this.setToken(data.accessToken);
-    return data;
+    const token = data?.accessToken;
+    if (!token || typeof token !== 'string') {
+      throw new Error('Réponse de connexion invalide (token manquant).');
+    }
+    this.setToken(token);
+    return data as { accessToken: string; user: unknown };
   }
 
   async register(email: string, password: string, role?: string, companyId?: string) {
@@ -132,6 +150,16 @@ class ApiClient {
 
   async cancelConsultation(id: string) {
     return this.request<any>(`/consultations/${id}/cancel`, { method: 'PATCH' });
+  }
+
+  async rescheduleConsultation(
+    id: string,
+    data: { scheduledAt: string; scheduledEndAt: string },
+  ) {
+    return this.request<any>(`/consultations/${id}/reschedule`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
   }
 
   // Practitioners

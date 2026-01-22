@@ -1,6 +1,16 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Card } from '@/app/components/ui/card';
 import { Button } from '@/app/components/ui/button';
+import { Input } from '@/app/components/ui/input';
+import { Label } from '@/app/components/ui/label';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogDescription,
+} from '@/app/components/ui/dialog';
 import { Calendar, Clock, Video, MessageSquare, Star } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/app/components/ui/tabs';
 import { api } from '@/app/services/api';
@@ -26,6 +36,9 @@ function normalize(list: any[], now: Date) {
       avatar: `${c.practitioner?.firstName?.[0] || ''}${c.practitioner?.lastName?.[0] || ''}`.toUpperCase(),
       roomName: c.roomName,
       canJoin: (new Date(c.scheduledAt).getTime() - now.getTime()) / (60 * 1000) <= 10,
+      scheduledAt: c.scheduledAt,
+      scheduledEndAt: c.scheduledEndAt,
+      durationMinutes: c.duration ?? 50,
     }));
   const pa = arr
     .filter((c: any) => new Date(c.scheduledAt) < now || c.status === 'CANCELLED')
@@ -44,11 +57,39 @@ function normalize(list: any[], now: Date) {
   return { up, pa };
 }
 
+type RescheduleData = {
+  id: string;
+  practitioner: string;
+  scheduledAt: string;
+  scheduledEndAt: string;
+  durationMinutes: number;
+};
+
+function toDateInput(d: Date | string): string {
+  const dt = typeof d === 'string' ? new Date(d) : d;
+  const y = dt.getFullYear();
+  const m = String(dt.getMonth() + 1).padStart(2, '0');
+  const day = String(dt.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function toTimeInput(d: Date | string): string {
+  const dt = typeof d === 'string' ? new Date(d) : d;
+  const h = String(dt.getHours()).padStart(2, '0');
+  const min = String(dt.getMinutes()).padStart(2, '0');
+  return `${h}:${min}`;
+}
+
 export function MyAppointments({ onNavigate, onNavigateToMessages }: MyAppointmentsProps) {
   const [upcoming, setUpcoming] = useState<any[]>([]);
   const [past, setPast] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
+  const [rescheduleData, setRescheduleData] = useState<RescheduleData | null>(null);
+  const [rescheduleDate, setRescheduleDate] = useState('');
+  const [rescheduleTime, setRescheduleTime] = useState('');
+  const [rescheduleSaving, setRescheduleSaving] = useState(false);
+  const [rescheduleError, setRescheduleError] = useState<string | null>(null);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -141,7 +182,21 @@ export function MyAppointments({ onNavigate, onNavigateToMessages }: MyAppointme
                       >
                         <MessageSquare className="w-4 h-4 mr-2" /> Envoyer un message
                       </Button>
-                      <Button variant="outline" onClick={() => onNavigate?.('practitioners')}>
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          setRescheduleData({
+                            id: a.id,
+                            practitioner: a.practitioner,
+                            scheduledAt: a.scheduledAt,
+                            scheduledEndAt: a.scheduledEndAt,
+                            durationMinutes: a.durationMinutes,
+                          });
+                          setRescheduleDate(toDateInput(a.scheduledAt));
+                          setRescheduleTime(toTimeInput(a.scheduledAt));
+                          setRescheduleError(null);
+                        }}
+                      >
                         <Calendar className="w-4 h-4 mr-2" /> Reprogrammer
                       </Button>
                       <Button
@@ -242,6 +297,110 @@ export function MyAppointments({ onNavigate, onNavigateToMessages }: MyAppointme
           )}
         </TabsContent>
       </Tabs>
+
+      <Dialog
+        open={!!rescheduleData}
+        onOpenChange={(open) => {
+          if (!open) {
+            setRescheduleData(null);
+            setRescheduleError(null);
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Reprogrammer le rendez-vous</DialogTitle>
+            <DialogDescription>
+              {rescheduleData && (
+                <>Avec {rescheduleData.practitioner}. Choisissez une nouvelle date et heure.</>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          {rescheduleData && (
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                setRescheduleError(null);
+                setRescheduleSaving(true);
+                try {
+                  const start = new Date(`${rescheduleDate}T${rescheduleTime}:00`);
+                  if (Number.isNaN(start.getTime())) {
+                    setRescheduleError('Date ou heure invalide.');
+                    return;
+                  }
+                  if (start.getTime() < Date.now()) {
+                    setRescheduleError('La date et l\'heure doivent être dans le futur.');
+                    return;
+                  }
+                  const end = new Date(
+                    start.getTime() + rescheduleData.durationMinutes * 60 * 1000,
+                  );
+                  await api.rescheduleConsultation(rescheduleData.id, {
+                    scheduledAt: start.toISOString(),
+                    scheduledEndAt: end.toISOString(),
+                  });
+                  setRescheduleData(null);
+                  await load();
+                } catch (err) {
+                  setRescheduleError(
+                    err instanceof Error ? err.message : 'Erreur lors de la reprogrammation.',
+                  );
+                } finally {
+                  setRescheduleSaving(false);
+                }
+              }}
+              className="space-y-4"
+            >
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="reschedule-date">Date</Label>
+                  <Input
+                    id="reschedule-date"
+                    type="date"
+                    value={rescheduleDate}
+                    onChange={(e) => setRescheduleDate(e.target.value)}
+                    required
+                    disabled={rescheduleSaving}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="reschedule-time">Heure</Label>
+                  <Input
+                    id="reschedule-time"
+                    type="time"
+                    value={rescheduleTime}
+                    onChange={(e) => setRescheduleTime(e.target.value)}
+                    required
+                    disabled={rescheduleSaving}
+                  />
+                </div>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Durée : {rescheduleData.durationMinutes} min
+              </p>
+              {rescheduleError && (
+                <p className="text-sm text-destructive">{rescheduleError}</p>
+              )}
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setRescheduleData(null);
+                    setRescheduleError(null);
+                  }}
+                  disabled={rescheduleSaving}
+                >
+                  Annuler
+                </Button>
+                <Button type="submit" disabled={rescheduleSaving}>
+                  {rescheduleSaving ? 'Enregistrement…' : 'Enregistrer'}
+                </Button>
+              </DialogFooter>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

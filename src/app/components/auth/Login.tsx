@@ -69,9 +69,14 @@ export function Login({ onLoginSuccess }: LoginProps) {
             />
           </div>
           {error && (
-            <p className="text-sm text-destructive" role="alert">
-              {error}
-            </p>
+            <div className="rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3" role="alert">
+              <p className="text-sm text-destructive font-medium">{error}</p>
+              {(error.includes('API') || error.includes('backend') || error.includes('injoignable') || error.includes('joindre')) && (
+                <p className="text-xs text-muted-foreground mt-2">
+                  Lancez <code className="bg-muted px-1 rounded">npm run dev:all</code> à la racine du projet (frontend + backend).
+                </p>
+              )}
+            </div>
           )}
           <Button type="submit" className="w-full" size="lg" disabled={loading}>
             {loading ? 'Connexion...' : 'Se connecter'}
