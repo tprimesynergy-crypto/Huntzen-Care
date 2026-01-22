@@ -5,7 +5,11 @@
   "type": "module",
   "scripts": {
     "build": "vite build",
-    "dev": "vite"
+    "dev": "vite",
+    "prisma:generate": "npm run prisma:generate --prefix backend-api",
+    "prisma:migrate": "npm run prisma:migrate --prefix backend-api",
+    "prisma:studio": "npm run prisma:studio --prefix backend-api",
+    "prisma:seed": "npm run prisma:seed --prefix backend-api"
   },
   "dependencies": {
     "@emotion/react": "11.14.0",
@@ -13,6 +17,7 @@
     "@mui/icons-material": "7.3.5",
     "@mui/material": "7.3.5",
     "@popperjs/core": "2.11.8",
+    "@prisma/client": "^7.3.0",
     "@radix-ui/react-accordion": "1.2.3",
     "@radix-ui/react-alert-dialog": "1.1.6",
     "@radix-ui/react-aspect-ratio": "1.1.2",
