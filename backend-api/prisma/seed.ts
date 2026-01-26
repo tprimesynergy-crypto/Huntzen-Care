@@ -3,8 +3,7 @@ import * as bcrypt from 'bcrypt';
 
 const prisma = new PrismaClient();
 
-const EMPLOYEE_PASSWORD = 'Password123!';
-const PRACTITIONER_PASSWORD = 'Password123!';
+const PASSWORD = 'Password123!'; // Same password for all demo users
 
 async function main() {
   console.log('🌱 Seeding database...');
@@ -23,8 +22,7 @@ async function main() {
   await prisma.user.deleteMany();
   await prisma.company.deleteMany();
 
-  const passwordHash = await bcrypt.hash(EMPLOYEE_PASSWORD, 10);
-  const practitionerPasswordHash = await bcrypt.hash(PRACTITIONER_PASSWORD, 10);
+  const passwordHash = await bcrypt.hash(PASSWORD, 10);
 
   // 1. Company
   const company = await prisma.company.create({
@@ -43,7 +41,39 @@ async function main() {
   });
   console.log('  ✓ Company created:', company.name);
 
-  // 2. Employee user (Marc) + Employee
+  // 2. Admin users (Super Admin, Admin HuntZen, Admin RH)
+  const userSuperAdmin = await prisma.user.create({
+    data: {
+      email: 'superadmin@huntzen.com',
+      passwordHash,
+      role: 'SUPER_ADMIN',
+      isActive: true,
+    },
+  });
+  console.log('  ✓ Super Admin created: superadmin@huntzen.com');
+
+  const userAdminHuntzen = await prisma.user.create({
+    data: {
+      email: 'admin@huntzen.com',
+      passwordHash,
+      role: 'ADMIN_HUNTZEN',
+      isActive: true,
+    },
+  });
+  console.log('  ✓ Admin HuntZen created: admin@huntzen.com');
+
+  const userAdminRH = await prisma.user.create({
+    data: {
+      email: 'admin.rh@huntzen-demo.com',
+      passwordHash,
+      role: 'ADMIN_RH',
+      companyId: company.id,
+      isActive: true,
+    },
+  });
+  console.log('  ✓ Admin RH created: admin.rh@huntzen-demo.com');
+
+  // 3. Employee user (Marc) + Employee
   const userMarc = await prisma.user.create({
     data: {
       email: 'marc@huntzen-demo.com',
@@ -68,11 +98,11 @@ async function main() {
   });
   console.log('  ✓ Employee created: Marc Dupont (marc@huntzen-demo.com)');
 
-  // 3. Practitioner users + Practitioners
+  // 4. Practitioner users + Practitioners
   const userSophie = await prisma.user.create({
     data: {
       email: 'sophie.martin@huntzen-care.com',
-      passwordHash: practitionerPasswordHash,
+      passwordHash,
       role: 'PRACTITIONER',
       isActive: true,
     },
@@ -105,7 +135,7 @@ async function main() {
   const userThomas = await prisma.user.create({
     data: {
       email: 'thomas.bernard@huntzen-care.com',
-      passwordHash: practitionerPasswordHash,
+      passwordHash,
       role: 'PRACTITIONER',
       isActive: true,
     },
@@ -136,7 +166,7 @@ async function main() {
   });
   console.log('  ✓ Practitioners created: Dr. Sophie Martin, M. Thomas Bernard');
 
-  // 4. Availabilities (Mon–Fri 9–17)
+  // 5. Availabilities (Mon–Fri 9–17)
   for (const p of [practitionerSophie, practitionerThomas]) {
     for (let day = 1; day <= 5; day++) {
       await prisma.availability.create({
@@ -154,7 +184,7 @@ async function main() {
   }
   console.log('  ✓ Availabilities created');
 
-  // 5. Consultations (2 upcoming, 1 past)
+  // 6. Consultations (2 upcoming, 1 past)
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const tomorrow = new Date(today);
@@ -231,7 +261,7 @@ async function main() {
     console.log('  ✓ Messages created');
   }
 
-  // 6. News (company-specific)
+  // 7. News (company-specific)
   const newsItems = [
     {
       title: '5 techniques de respiration pour gérer le stress au travail',
@@ -271,7 +301,7 @@ async function main() {
   }
   console.log('  ✓ News created');
 
-  // 7. Journal entries (Marc)
+  // 8. Journal entries (Marc)
   await prisma.journalEntry.create({
     data: {
       employeeId: employeeMarc.id,
@@ -290,7 +320,7 @@ async function main() {
   });
   console.log('  ✓ Journal entries created');
 
-  // 8. Notifications (Marc)
+  // 9. Notifications (Marc)
   await prisma.notification.createMany({
     data: [
       {
@@ -316,10 +346,13 @@ async function main() {
   console.log('  ✓ Notifications created');
 
   console.log('\n✅ Seed completed!\n');
-  console.log('Login credentials:');
-  console.log('  Employee (Marc):  marc@huntzen-demo.com / Password123!');
-  console.log('  Practitioner:     sophie.martin@huntzen-care.com / Password123!');
-  console.log('  Practitioner:     thomas.bernard@huntzen-care.com / Password123!');
+  console.log('Login credentials (all passwords: Password123!):');
+  console.log('  👑 Super Admin:      superadmin@huntzen.com');
+  console.log('  🏢 Admin HuntZen:    admin@huntzen.com');
+  console.log('  👔 Admin RH:         admin.rh@huntzen-demo.com');
+  console.log('  👤 Employee (Marc):  marc@huntzen-demo.com');
+  console.log('  👨‍⚕️ Practitioner:     sophie.martin@huntzen-care.com');
+  console.log('  👨‍⚕️ Practitioner:     thomas.bernard@huntzen-care.com');
 }
 
 main()

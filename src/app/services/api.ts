@@ -1,5 +1,6 @@
 const API_URL = import.meta.env.VITE_API_URL
   || (import.meta.env.DEV ? '/api' : 'http://localhost:3000');
+  console.log("API_URL", API_URL);
 
 class ApiClient {
   private baseURL: string;
@@ -248,6 +249,20 @@ class ApiClient {
   // Company
   async getCompany() {
     return this.request<any>('/company');
+  }
+
+  // HR Statistics
+  async getHRStats() {
+    return this.request<{
+      totalEmployees: number;
+      activeUsers: number;
+      totalConsultations: number;
+      consultationsThisMonth: number;
+      completedConsultations: number;
+      upcomingConsultations: number;
+      departments: string[];
+      employeesByDepartment: Record<string, number>;
+    }>('/hr/stats');
   }
 
   // Notifications

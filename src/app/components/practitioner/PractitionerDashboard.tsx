@@ -27,11 +27,18 @@ export function PractitionerDashboard() {
   const todayEnd = new Date(todayStart);
   todayEnd.setDate(todayEnd.getDate() + 1);
   const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const isDev = import.meta.env.DEV; // true in development, false in production
 
   const todayAppointments = consultations.filter((c: any) => {
     const d = new Date(c.scheduledAt);
     return d >= todayStart && d < todayEnd && c.status !== 'CANCELLED';
-  }).sort((a: any, b: any) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime());
+  }).sort((a: any, b: any) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime())
+    .map((c: any) => {
+      // In dev: always allow joining. In prod: only 10 minutes before
+      const minutesUntilStart = (new Date(c.scheduledAt).getTime() - now.getTime()) / (60 * 1000);
+      const canJoin = isDev ? true : minutesUntilStart <= 10;
+      return { ...c, canJoin };
+    });
 
   const thisMonth = consultations.filter((c: any) => new Date(c.scheduledAt) >= thisMonthStart && c.status !== 'CANCELLED');
   const completed = consultations.filter((c: any) => c.status === 'COMPLETED');
@@ -140,6 +147,8 @@ export function PractitionerDashboard() {
                   const initials = emp ? `${emp.firstName?.[0] ?? ''}${emp.lastName?.[0] ?? ''}` : '?';
                   const time = `${new Date(c.scheduledAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })} - ${new Date(c.scheduledEndAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`;
                   const type = c.format === 'VIDEO' ? 'Visioconférence' : c.format === 'AUDIO' ? 'Téléphone' : 'Présentiel';
+                  // Use the same roomName from the consultation - this ensures both practitioner and employee join the same room
+                  const roomName = c.roomName || `huntzen-${c.id}`;
                   return (
                     <div key={c.id} className="flex items-start gap-4 p-4 bg-muted/30 rounded-lg">
                       <div className="w-12 h-12 bg-primary rounded-full flex items-center justify-center text-white font-semibold">
@@ -152,7 +161,22 @@ export function PractitionerDashboard() {
                           <span className="flex items-center gap-1"><Video className="w-4 h-4" />{type}</span>
                         </div>
                       </div>
-                      <Button size="sm" className="bg-primary hover:bg-primary/90">Démarrer</Button>
+                      <Button 
+                        size="sm" 
+                        className="bg-primary hover:bg-primary/90"
+                        disabled={!c.canJoin}
+                        onClick={() => {
+                          window.open(`https://meet.jit.si/${roomName}`, '_blank', 'width=1200,height=800');
+                        }}
+                      >
+                        <Video className="w-4 h-4 mr-2" />
+                        {c.canJoin ? 'Rejoindre' : 'Démarrer'}
+                      </Button>
+                      {!c.canJoin && (
+                        <div className="mt-2 text-xs text-muted-foreground">
+                          Disponible 10 min avant
+                        </div>
+                      )}
                     </div>
                   );
                 })}

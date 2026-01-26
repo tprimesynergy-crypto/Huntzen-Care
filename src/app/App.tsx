@@ -25,6 +25,7 @@ import { api } from '@/app/services/api';
 export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [sessionChecked, setSessionChecked] = useState(false);
+  const [userRole, setUserRole] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [showEmergencyModal, setShowEmergencyModal] = useState(false);
   const [selectedPractitionerId, setSelectedPractitionerId] = useState<string | null>(null);
@@ -44,14 +45,26 @@ export default function App() {
       return;
     }
     api.getMe()
-      .then(() => {
+      .then((user: any) => {
+        const role = user?.role || null;
+        setUserRole(role);
         setSessionChecked(true);
         setIsLoggedIn(true);
+        
+        // Set initial dashboard based on role
+        if (role === 'PRACTITIONER') {
+          setActiveTab('practitioner-dashboard');
+        } else if (role === 'SUPER_ADMIN' || role === 'ADMIN_HUNTZEN' || role === 'ADMIN_RH') {
+          setActiveTab('hr-dashboard');
+        } else {
+          setActiveTab('dashboard'); // Default to employee dashboard
+        }
       })
       .catch(() => {
         api.logout();
         setSessionChecked(true);
         setIsLoggedIn(false);
+        setUserRole(null);
       });
   }, []);
 
@@ -86,6 +99,7 @@ export default function App() {
           <MyAppointments
             onNavigate={setActiveTab}
             onNavigateToMessages={handleNavigateToMessages}
+            userRole={userRole}
           />
         );
       case 'journal':
@@ -145,7 +159,27 @@ export default function App() {
   if (!isLoggedIn) {
     return (
       <Login
-        onLoginSuccess={() => setIsLoggedIn(true)}
+        onLoginSuccess={async () => {
+          // Fetch user role after login
+          try {
+            const user = await api.getMe();
+            const role = user?.role || null;
+            setUserRole(role);
+            setIsLoggedIn(true);
+            
+            // Set initial dashboard based on role
+            if (role === 'PRACTITIONER') {
+              setActiveTab('practitioner-dashboard');
+            } else if (role === 'SUPER_ADMIN' || role === 'ADMIN_HUNTZEN' || role === 'ADMIN_RH') {
+              setActiveTab('hr-dashboard');
+            } else {
+              setActiveTab('dashboard');
+            }
+          } catch {
+            setIsLoggedIn(true);
+            setActiveTab('dashboard');
+          }
+        }}
       />
     );
   }
@@ -165,8 +199,10 @@ export default function App() {
         onLogout={() => {
           api.logout();
           setIsLoggedIn(false);
+          setUserRole(null);
         }}
         profileRefreshKey={profileRefreshKey}
+        userRole={userRole}
       />
 
       {/* Main Content */}

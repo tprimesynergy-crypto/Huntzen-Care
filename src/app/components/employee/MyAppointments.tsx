@@ -18,42 +18,80 @@ import { api } from '@/app/services/api';
 interface MyAppointmentsProps {
   onNavigate?: (tab: string) => void;
   onNavigateToMessages?: (consultationId: string) => void;
+  userRole?: string | null;
 }
 
-function normalize(list: any[], now: Date) {
+function normalize(list: any[], now: Date, userRole?: string | null) {
   const arr = Array.isArray(list) ? list : [];
+  const isDev = import.meta.env.DEV; // true in development, false in production
+  const isPractitioner = userRole === 'PRACTITIONER';
+  
   const up = arr
     .filter((c: any) => new Date(c.scheduledAt) >= now && c.status !== 'CANCELLED')
     .sort((a: any, b: any) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime())
-    .map((c: any) => ({
-      id: c.id,
-      practitioner: `${c.practitioner?.title || ''} ${c.practitioner?.firstName} ${c.practitioner?.lastName}`.trim(),
-      specialty: c.practitioner?.specialty ?? '',
-      date: new Date(c.scheduledAt).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }),
-      time: `${new Date(c.scheduledAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })} - ${new Date(c.scheduledEndAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`,
-      type: c.format === 'VIDEO' ? 'Visioconférence' : c.format === 'AUDIO' ? 'Appel audio' : 'En personne',
-      status: c.status === 'CONFIRMED' ? 'confirmed' : 'scheduled',
-      avatar: `${c.practitioner?.firstName?.[0] || ''}${c.practitioner?.lastName?.[0] || ''}`.toUpperCase(),
-      roomName: c.roomName,
-      canJoin: (new Date(c.scheduledAt).getTime() - now.getTime()) / (60 * 1000) <= 10,
-      scheduledAt: c.scheduledAt,
-      scheduledEndAt: c.scheduledEndAt,
-      durationMinutes: c.duration ?? 50,
-    }));
+    .map((c: any) => {
+      // In dev: always allow joining. In prod: only 10 minutes before
+      const minutesUntilStart = (new Date(c.scheduledAt).getTime() - now.getTime()) / (60 * 1000);
+      const canJoin = isDev ? true : minutesUntilStart <= 10;
+      
+      // For practitioners: show employee info. For employees: show practitioner info
+      const displayName = isPractitioner
+        ? `${c.employee?.firstName || ''} ${c.employee?.lastName || ''}`.trim() || 'Patient'
+        : `${c.practitioner?.title || ''} ${c.practitioner?.firstName || ''} ${c.practitioner?.lastName || ''}`.trim();
+      
+      const displayInfo = isPractitioner
+        ? c.employee?.department || 'Patient'
+        : c.practitioner?.specialty ?? '';
+      
+      const avatar = isPractitioner
+        ? `${c.employee?.firstName?.[0] || ''}${c.employee?.lastName?.[0] || ''}`.toUpperCase() || '?'
+        : `${c.practitioner?.firstName?.[0] || ''}${c.practitioner?.lastName?.[0] || ''}`.toUpperCase();
+      
+      return {
+        id: c.id,
+        practitioner: displayName,
+        specialty: displayInfo,
+        date: new Date(c.scheduledAt).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }),
+        time: `${new Date(c.scheduledAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })} - ${new Date(c.scheduledEndAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`,
+        type: c.format === 'VIDEO' ? 'Visioconférence' : c.format === 'AUDIO' ? 'Appel audio' : 'En personne',
+        status: c.status === 'CONFIRMED' ? 'confirmed' : 'scheduled',
+        avatar,
+        roomName: c.roomName,
+        canJoin,
+        scheduledAt: c.scheduledAt,
+        scheduledEndAt: c.scheduledEndAt,
+        durationMinutes: c.duration ?? 50,
+      };
+    });
   const pa = arr
     .filter((c: any) => new Date(c.scheduledAt) < now || c.status === 'CANCELLED')
     .sort((a: any, b: any) => new Date(b.scheduledAt).getTime() - new Date(a.scheduledAt).getTime())
-    .map((c: any) => ({
-      id: c.id,
-      practitioner: `${c.practitioner?.title || ''} ${c.practitioner?.firstName} ${c.practitioner?.lastName}`.trim(),
-      specialty: c.practitioner?.specialty ?? '',
-      date: new Date(c.scheduledAt).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }),
-      time: `${new Date(c.scheduledAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })} - ${new Date(c.scheduledEndAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`,
-      type: c.format === 'VIDEO' ? 'Visioconférence' : c.format === 'AUDIO' ? 'Appel audio' : 'En personne',
-      status: 'completed',
-      avatar: `${c.practitioner?.firstName?.[0] || ''}${c.practitioner?.lastName?.[0] || ''}`.toUpperCase(),
-      rated: false,
-    }));
+    .map((c: any) => {
+      // For practitioners: show employee info. For employees: show practitioner info
+      const displayName = isPractitioner
+        ? `${c.employee?.firstName || ''} ${c.employee?.lastName || ''}`.trim() || 'Patient'
+        : `${c.practitioner?.title || ''} ${c.practitioner?.firstName || ''} ${c.practitioner?.lastName || ''}`.trim();
+      
+      const displayInfo = isPractitioner
+        ? c.employee?.department || 'Patient'
+        : c.practitioner?.specialty ?? '';
+      
+      const avatar = isPractitioner
+        ? `${c.employee?.firstName?.[0] || ''}${c.employee?.lastName?.[0] || ''}`.toUpperCase() || '?'
+        : `${c.practitioner?.firstName?.[0] || ''}${c.practitioner?.lastName?.[0] || ''}`.toUpperCase();
+      
+      return {
+        id: c.id,
+        practitioner: displayName,
+        specialty: displayInfo,
+        date: new Date(c.scheduledAt).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }),
+        time: `${new Date(c.scheduledAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })} - ${new Date(c.scheduledEndAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`,
+        type: c.format === 'VIDEO' ? 'Visioconférence' : c.format === 'AUDIO' ? 'Appel audio' : 'En personne',
+        status: 'completed',
+        avatar,
+        rated: false,
+      };
+    });
   return { up, pa };
 }
 
@@ -80,7 +118,7 @@ function toTimeInput(d: Date | string): string {
   return `${h}:${min}`;
 }
 
-export function MyAppointments({ onNavigate, onNavigateToMessages }: MyAppointmentsProps) {
+export function MyAppointments({ onNavigate, onNavigateToMessages, userRole }: MyAppointmentsProps) {
   const [upcoming, setUpcoming] = useState<any[]>([]);
   const [past, setPast] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -94,14 +132,14 @@ export function MyAppointments({ onNavigate, onNavigateToMessages }: MyAppointme
   const load = useCallback(() => {
     setLoading(true);
     api.getConsultations().then((list) => {
-      const { up, pa } = normalize(list, new Date());
+      const { up, pa } = normalize(list, new Date(), userRole);
       setUpcoming(up);
       setPast(pa);
     }).catch(() => {
       setUpcoming([]);
       setPast([]);
     }).finally(() => setLoading(false));
-  }, []);
+  }, [userRole]);
 
   useEffect(() => {
     load();

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Home, Calendar, MessageSquare, BookOpen, Heart, Bell, Settings, LogOut, AlertCircle } from 'lucide-react';
+import { Home, Calendar, MessageSquare, BookOpen, Heart, Bell, Settings, LogOut, AlertCircle, Users } from 'lucide-react';
 import { Button } from '@/app/components/ui/button';
 import { api } from '@/app/services/api';
 
@@ -9,9 +9,10 @@ interface SidebarProps {
   onEmergencyClick: () => void;
   onLogout?: () => void;
   profileRefreshKey?: number;
+  userRole?: string | null;
 }
 
-export function Sidebar({ activeTab, onTabChange, onEmergencyClick, onLogout, profileRefreshKey }: SidebarProps) {
+export function Sidebar({ activeTab, onTabChange, onEmergencyClick, onLogout, profileRefreshKey, userRole }: SidebarProps) {
   const [userDisplay, setUserDisplay] = useState<{ name: string; initials: string } | null>(null);
 
   useEffect(() => {
@@ -31,14 +32,31 @@ export function Sidebar({ activeTab, onTabChange, onEmergencyClick, onLogout, pr
     });
   }, [profileRefreshKey]);
 
-  const menuItems = [
-    { id: 'dashboard', label: 'Tableau de Bord', icon: Home },
-    { id: 'appointments', label: 'Mes Rendez-vous', icon: Calendar },
-    { id: 'practitioners', label: 'Trouver un Praticien', icon: Heart },
-    { id: 'messages', label: 'Messages', icon: MessageSquare },
-    { id: 'journal', label: 'Mon Journal', icon: BookOpen },
-    { id: 'news', label: 'Actualités Bien-être', icon: Bell },
-  ];
+  // Menu items vary by role
+  const isAdmin = userRole === 'SUPER_ADMIN' || userRole === 'ADMIN_HUNTZEN' || userRole === 'ADMIN_RH';
+  const isPractitioner = userRole === 'PRACTITIONER';
+  
+  const menuItems = isPractitioner
+    ? [
+        { id: 'practitioner-dashboard', label: 'Tableau de Bord', icon: Home },
+        { id: 'appointments', label: 'Mes Consultations', icon: Calendar },
+        { id: 'messages', label: 'Messages', icon: MessageSquare },
+        { id: 'news', label: 'Actualités Bien-être', icon: Bell },
+      ]
+    : isAdmin
+    ? [
+        { id: 'hr-dashboard', label: 'Tableau de Bord', icon: Home },
+        { id: 'employee-usage', label: 'Suivi Employés', icon: Users },
+        { id: 'practitioner-billing', label: 'Suivi Praticiens', icon: Heart },
+      ]
+    : [
+        { id: 'dashboard', label: 'Tableau de Bord', icon: Home },
+        { id: 'appointments', label: 'Mes Rendez-vous', icon: Calendar },
+        { id: 'practitioners', label: 'Trouver un Praticien', icon: Heart },
+        { id: 'messages', label: 'Messages', icon: MessageSquare },
+        { id: 'journal', label: 'Mon Journal', icon: BookOpen },
+        { id: 'news', label: 'Actualités Bien-être', icon: Bell },
+      ];
 
   const bottomItems = [
     { id: 'settings', label: 'Paramètres', icon: Settings },

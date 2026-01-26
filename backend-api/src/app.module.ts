@@ -10,6 +10,7 @@ import { JournalModule } from './modules/journal/journal.module';
 import { MessagesModule } from './modules/messages/messages.module';
 import { CompanyModule } from './modules/company/company.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
+import { HRModule } from './modules/hr/hr.module';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
     MessagesModule,
     CompanyModule,
     NotificationsModule,
+    HRModule,
   ],
 })
 export class AppModule {}

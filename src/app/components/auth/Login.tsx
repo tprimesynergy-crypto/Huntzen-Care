@@ -21,7 +21,8 @@ export function Login({ onLoginSuccess }: LoginProps) {
     setError(null);
     setLoading(true);
     try {
-      await api.login(email, password);
+      const response = await api.login(email, password);
+      // Role is in response.user.role, but App.tsx will fetch it via getMe()
       onLoginSuccess();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Échec de la connexion');

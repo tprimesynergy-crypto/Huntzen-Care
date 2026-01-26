@@ -37,20 +37,28 @@ export function EmployeeDashboard({ onNavigate, onViewArticle }: EmployeeDashboa
 
       const consultations = Array.isArray(consultationsRes) ? consultationsRes : [];
       const now = new Date();
+      const isDev = import.meta.env.DEV; // true in development, false in production
       const upcoming = consultations
         .filter((c: any) => new Date(c.scheduledAt) >= now && c.status !== 'CANCELLED')
         .sort((a: any, b: any) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime())
         .slice(0, 2)
-        .map((c: any) => ({
-          id: c.id,
-          practitioner: `${c.practitioner?.title || ''} ${c.practitioner?.firstName} ${c.practitioner?.lastName}`.trim(),
-          specialty: c.practitioner?.specialty ?? '',
-          date: new Date(c.scheduledAt).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }),
-          time: `${new Date(c.scheduledAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })} - ${new Date(c.scheduledEndAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`,
-          type: c.format === 'VIDEO' ? 'Visioconférence' : c.format === 'AUDIO' ? 'Appel audio' : 'En personne',
-          avatar: `${c.practitioner?.firstName?.[0] || ''}${c.practitioner?.lastName?.[0] || ''}`.toUpperCase(),
-          roomName: c.roomName,
-        }));
+        .map((c: any) => {
+          // In dev: always allow joining. In prod: only 10 minutes before
+          const minutesUntilStart = (new Date(c.scheduledAt).getTime() - now.getTime()) / (60 * 1000);
+          const canJoin = isDev ? true : minutesUntilStart <= 10;
+          
+          return {
+            id: c.id,
+            practitioner: `${c.practitioner?.title || ''} ${c.practitioner?.firstName} ${c.practitioner?.lastName}`.trim(),
+            specialty: c.practitioner?.specialty ?? '',
+            date: new Date(c.scheduledAt).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }),
+            time: `${new Date(c.scheduledAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })} - ${new Date(c.scheduledEndAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`,
+            type: c.format === 'VIDEO' ? 'Visioconférence' : c.format === 'AUDIO' ? 'Appel audio' : 'En personne',
+            avatar: `${c.practitioner?.firstName?.[0] || ''}${c.practitioner?.lastName?.[0] || ''}`.toUpperCase(),
+            roomName: c.roomName,
+            canJoin,
+          };
+        });
 
       setUpcomingAppointments(upcoming);
 
@@ -180,6 +188,7 @@ export function EmployeeDashboard({ onNavigate, onViewArticle }: EmployeeDashboa
                     <Button
                       size="sm"
                       className="bg-primary hover:bg-primary/90"
+                      disabled={!appointment.canJoin}
                       onClick={() => {
                         const roomName = appointment.roomName || `huntzen-${appointment.id}`;
                         window.open(`https://meet.jit.si/${roomName}`, '_blank', 'width=1200,height=800');
