@@ -41,6 +41,8 @@ export function FindPractitioner({ onViewProfile, userRole }: FindPractitionerPr
   const [bookingError, setBookingError] = useState<string | null>(null);
   const [bookingSuccess, setBookingSuccess] = useState<string | null>(null);
   const [employeeInfo, setEmployeeInfo] = useState<any | null>(null);
+  const [searchName, setSearchName] = useState('');
+  const [searchCity, setSearchCity] = useState('');
 
   useEffect(() => {
     api.getPractitioners().then((list) => {
@@ -64,9 +66,16 @@ export function FindPractitioner({ onViewProfile, userRole }: FindPractitionerPr
       });
   }, [userRole]);
 
-  const filtered = selectedSpecialty === 'all'
-    ? practitioners
-    : practitioners.filter((p) => p.specialty === selectedSpecialty);
+  const filtered = practitioners.filter((p) => {
+    if (selectedSpecialty !== 'all' && p.specialty !== selectedSpecialty) return false;
+    const name = `${p.title || ''} ${p.firstName || ''} ${p.lastName || ''}`.toLowerCase();
+    const citySource = (p.timezone || '').toLowerCase();
+    const nameSearch = searchName.trim().toLowerCase();
+    const citySearch = searchCity.trim().toLowerCase();
+    if (nameSearch && !name.includes(nameSearch)) return false;
+    if (citySearch && !citySource.includes(citySearch)) return false;
+    return true;
+  });
 
   const specialties = [
     { value: 'all', label: 'Toutes les spécialités' },
@@ -90,7 +99,12 @@ export function FindPractitioner({ onViewProfile, userRole }: FindPractitionerPr
           <div className="md:col-span-1">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input placeholder="Rechercher un nom..." className="pl-10 bg-input-background" />
+              <Input
+                placeholder="Rechercher un nom..."
+                className="pl-10 bg-input-background"
+                value={searchName}
+                onChange={(e) => setSearchName(e.target.value)}
+              />
             </div>
           </div>
           <Select value={selectedSpecialty} onValueChange={setSelectedSpecialty}>
@@ -105,7 +119,12 @@ export function FindPractitioner({ onViewProfile, userRole }: FindPractitionerPr
           </Select>
           <div className="relative">
             <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input placeholder="Ville..." className="pl-10 bg-input-background" />
+            <Input
+              placeholder="Ville..."
+              className="pl-10 bg-input-background"
+              value={searchCity}
+              onChange={(e) => setSearchCity(e.target.value)}
+            />
           </div>
         </div>
       </Card>

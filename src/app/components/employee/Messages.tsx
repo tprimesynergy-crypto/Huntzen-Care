@@ -39,6 +39,7 @@ export function Messages({
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
   const preselectRef = useRef<string | null>(null);
   const preselectPractitionerRef = useRef<string | null>(null);
   preselectRef.current = preselectConsultationId ?? null;
@@ -91,6 +92,16 @@ export function Messages({
     }).catch(() => setMessages([]));
   }, [selectedId]);
 
+  const normalizedSearch = searchTerm.trim().toLowerCase();
+  const visibleConversations =
+    normalizedSearch === ''
+      ? conversations
+      : conversations.filter((c) => {
+          const name = (c.practitioner || c.employee || '').toString().toLowerCase();
+          const specialty = (c.specialty || '').toString().toLowerCase();
+          return name.includes(normalizedSearch) || specialty.includes(normalizedSearch);
+        });
+
   const selected = conversations.find((c) => c.id === selectedId);
   const handleSend = async () => {
     const text = input.trim();
@@ -124,16 +135,22 @@ export function Messages({
           <div className="mb-4">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input type="text" placeholder="Rechercher..." className="pl-10 bg-input-background" />
+              <Input
+                type="text"
+                placeholder="Rechercher un praticien..."
+                className="pl-10 bg-input-background"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
             </div>
           </div>
           <div className="flex-1 space-y-2 overflow-y-auto">
             {loading ? (
               <div className="text-center py-4 text-muted-foreground">Chargement…</div>
-            ) : conversations.length === 0 ? (
+            ) : visibleConversations.length === 0 ? (
               <div className="text-center py-4 text-muted-foreground">Aucune conversation.</div>
             ) : (
-              conversations.map((c) => (
+              visibleConversations.map((c) => (
                 <button
                   key={c.id}
                   onClick={() => setSelectedId(c.id)}
