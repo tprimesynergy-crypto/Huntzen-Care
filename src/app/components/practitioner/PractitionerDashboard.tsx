@@ -42,6 +42,10 @@ export function PractitionerDashboard() {
 
   const thisMonth = consultations.filter((c: any) => new Date(c.scheduledAt) >= thisMonthStart && c.status !== 'CANCELLED');
   const completed = consultations.filter((c: any) => c.status === 'COMPLETED');
+  // Backend semantics:
+  // - SCHEDULED = en attente de confirmation
+  // - CONFIRMED = confirmé
+  const pendingConsultations = consultations.filter((c: any) => c.status === 'SCHEDULED');
   const uniqueEmployees = new Map<string, { employee: any; lastAt: Date; count: number }>();
   consultations.forEach((c: any) => {
     const e = c.employee;
@@ -123,8 +127,8 @@ export function PractitionerDashboard() {
               <MessageSquare className="w-6 h-6" />
             </div>
             <div>
-              <p className="text-sm text-muted-foreground">Conversations</p>
-              <p className="text-2xl font-bold">{conversations.length}</p>
+              <p className="text-sm text-muted-foreground">RDV en attente</p>
+              <p className="text-2xl font-bold">{pendingConsultations.length}</p>
             </div>
           </div>
         </Card>
@@ -149,6 +153,7 @@ export function PractitionerDashboard() {
                   const type = c.format === 'VIDEO' ? 'Visioconférence' : c.format === 'AUDIO' ? 'Téléphone' : 'Présentiel';
                   // Use the same roomName from the consultation - this ensures both practitioner and employee join the same room
                   const roomName = c.roomName || `huntzen-${c.id}`;
+                  const isPending = c.status === 'SCHEDULED';
                   return (
                     <div key={c.id} className="flex items-start gap-4 p-4 bg-muted/30 rounded-lg">
                       <div className="w-12 h-12 bg-primary rounded-full flex items-center justify-center text-white font-semibold">
@@ -160,18 +165,48 @@ export function PractitionerDashboard() {
                           <span className="flex items-center gap-1"><Clock className="w-4 h-4" />{time}</span>
                           <span className="flex items-center gap-1"><Video className="w-4 h-4" />{type}</span>
                         </div>
+                        {isPending && (
+                          <div className="mt-2 inline-flex items-center px-2 py-1 rounded-full bg-[#F39C12]/10 text-[#F39C12] text-xs font-medium">
+                            En attente de votre confirmation
+                          </div>
+                        )}
                       </div>
-                      <Button 
-                        size="sm" 
-                        className="bg-primary hover:bg-primary/90"
-                        disabled={!c.canJoin}
-                        onClick={() => {
-                          window.open(`https://meet.jit.si/${roomName}`, '_blank', 'width=1200,height=800');
-                        }}
-                      >
-                        <Video className="w-4 h-4 mr-2" />
-                        {c.canJoin ? 'Rejoindre' : 'Démarrer'}
-                      </Button>
+                      <div className="flex flex-col gap-2 items-end">
+                        <Button 
+                          size="sm" 
+                          className="bg-primary hover:bg-primary/90"
+                          disabled={!c.canJoin}
+                          onClick={() => {
+                            window.open(`https://meet.jit.si/${roomName}`, '_blank', 'width=1200,height=800');
+                          }}
+                        >
+                          <Video className="w-4 h-4 mr-2" />
+                          {c.canJoin ? 'Rejoindre' : 'Démarrer'}
+                        </Button>
+                        {isPending && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={async () => {
+                              try {
+                                await api.confirmConsultation(c.id);
+                                // Simple reload by refetching consultations
+                                const cons = await api.getConsultations().catch(() => []);
+                                setConsultations(Array.isArray(cons) ? cons : []);
+                              } catch (err) {
+                                console.error(err);
+                                window.alert(
+                                  err instanceof Error
+                                    ? err.message
+                                    : 'Erreur lors de la confirmation du rendez-vous.',
+                                );
+                              }
+                            }}
+                          >
+                            Confirmer le rendez-vous
+                          </Button>
+                        )}
+                      </div>
                       {!c.canJoin && (
                         <div className="mt-2 text-xs text-muted-foreground">
                           Disponible 10 min avant

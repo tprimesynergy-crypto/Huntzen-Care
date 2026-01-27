@@ -11,6 +11,7 @@ import { Messages } from '@/app/components/employee/Messages';
 import { News } from '@/app/components/employee/News';
 import { Settings } from '@/app/components/employee/Settings';
 import { MyProfile } from '@/app/components/employee/MyProfile';
+import { MyPractitionerProfile } from '@/app/components/practitioner/MyPractitionerProfile';
 import { PractitionerProfile } from '@/app/components/employee/PractitionerProfile';
 import { CompanyProfile } from '@/app/components/company/CompanyProfile';
 import { PractitionerDashboard } from '@/app/components/practitioner/PractitionerDashboard';
@@ -32,6 +33,7 @@ export default function App() {
   const [selectedArticleId, setSelectedArticleId] = useState<string | null>(null);
   const [profileRefreshKey, setProfileRefreshKey] = useState(0);
   const [messagesPreselectConsultationId, setMessagesPreselectConsultationId] = useState<string | null>(null);
+  const [messagesPreselectPractitionerId, setMessagesPreselectPractitionerId] = useState<string | null>(null);
 
   useLayoutEffect(() => {
     api.setOnUnauthorized(() => setIsLoggedIn(false));
@@ -78,8 +80,16 @@ export default function App() {
     setActiveTab('article');
   };
 
-  const handleNavigateToMessages = (consultationId: string) => {
-    setMessagesPreselectConsultationId(consultationId);
+  const handleNavigateToMessages = (consultationId: string, practitionerId?: string) => {
+    // Prefer selecting conversation by practitioner so we reuse the same thread
+    // (with previous messages), regardless of the specific consultation.
+    if (practitionerId) {
+      setMessagesPreselectConsultationId(null);
+      setMessagesPreselectPractitionerId(practitionerId);
+    } else {
+      setMessagesPreselectPractitionerId(null);
+      setMessagesPreselectConsultationId(consultationId);
+    }
     setActiveTab('messages');
   };
 
@@ -93,7 +103,12 @@ export default function App() {
           />
         );
       case 'practitioners':
-        return <FindPractitioner onViewProfile={handleViewPractitionerProfile} />;
+        return (
+          <FindPractitioner
+            onViewProfile={handleViewPractitionerProfile}
+            userRole={userRole}
+          />
+        );
       case 'appointments':
         return (
           <MyAppointments
@@ -109,6 +124,8 @@ export default function App() {
           <Messages
             preselectConsultationId={messagesPreselectConsultationId}
             onPreselectUsed={() => setMessagesPreselectConsultationId(null)}
+            preselectPractitionerId={messagesPreselectPractitionerId}
+            onPreselectPractitionerUsed={() => setMessagesPreselectPractitionerId(null)}
           />
         );
       case 'news':
@@ -116,12 +133,21 @@ export default function App() {
       case 'settings':
         return <Settings />;
       case 'profile':
+        if (userRole === 'PRACTITIONER') {
+          return <MyPractitionerProfile />;
+        }
         return <MyProfile onProfileUpdated={() => setProfileRefreshKey((k) => k + 1)} />;
       case 'practitioner-profile':
-        return <PractitionerProfile 
-          practitionerId={selectedPractitionerId ?? ''}
-          onClose={() => setActiveTab('practitioners')}
-        />;
+        return (
+          <PractitionerProfile
+            practitionerId={selectedPractitionerId ?? ''}
+            onClose={() => setActiveTab('practitioners')}
+            onStartMessages={(practitionerId) => {
+              setMessagesPreselectPractitionerId(practitionerId);
+              setActiveTab('messages');
+            }}
+          />
+        );
       case 'company-profile':
         return <CompanyProfile />;
       case 'practitioner-dashboard':

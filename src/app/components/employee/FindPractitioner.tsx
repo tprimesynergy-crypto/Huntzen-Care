@@ -5,6 +5,14 @@ import { Button } from '@/app/components/ui/button';
 import { Search, MapPin, Star, Calendar, Heart, Filter } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/app/components/ui/select';
 import { api } from '@/app/services/api';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/app/components/ui/dialog';
+import { Label } from '@/app/components/ui/label';
 
 const SPECIALTY_LABELS: Record<string, string> = {
   PSYCHOLOGUE_CLINICIEN: 'Psychologue clinicien',
@@ -19,18 +27,42 @@ const SPECIALTY_LABELS: Record<string, string> = {
 
 interface FindPractitionerProps {
   onViewProfile?: (practitionerId: string) => void;
+  userRole?: string | null;
 }
 
-export function FindPractitioner({ onViewProfile }: FindPractitionerProps) {
+export function FindPractitioner({ onViewProfile, userRole }: FindPractitionerProps) {
   const [selectedSpecialty, setSelectedSpecialty] = useState('all');
   const [practitioners, setPractitioners] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [bookingPractitioner, setBookingPractitioner] = useState<any | null>(null);
+  const [bookingDate, setBookingDate] = useState('');
+  const [bookingTime, setBookingTime] = useState('');
+  const [bookingSaving, setBookingSaving] = useState(false);
+  const [bookingError, setBookingError] = useState<string | null>(null);
+  const [bookingSuccess, setBookingSuccess] = useState<string | null>(null);
+  const [employeeInfo, setEmployeeInfo] = useState<any | null>(null);
 
   useEffect(() => {
     api.getPractitioners().then((list) => {
       setPractitioners(Array.isArray(list) ? list : []);
     }).catch(() => setPractitioners([])).finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    // Only employees have an Employee profile; avoid 404s for practitioners / admins.
+    if (userRole !== 'EMPLOYEE') {
+      setEmployeeInfo(null);
+      return;
+    }
+    // Preload employee info (company + employee id) for booking
+    api.getEmployeeMe()
+      .then((e) => {
+        setEmployeeInfo(e || null);
+      })
+      .catch(() => {
+        setEmployeeInfo(null);
+      });
+  }, [userRole]);
 
   const filtered = selectedSpecialty === 'all'
     ? practitioners
@@ -143,7 +175,17 @@ export function FindPractitioner({ onViewProfile }: FindPractitionerProps) {
                         <Button variant="outline" size="sm" onClick={() => onViewProfile?.(p.id)}>
                           Voir le profil
                         </Button>
-                        <Button size="sm" className="bg-primary hover:bg-primary/90">
+                        <Button
+                          size="sm"
+                          className="bg-primary hover:bg-primary/90"
+                          onClick={() => {
+                            setBookingPractitioner(p);
+                            setBookingDate('');
+                            setBookingTime('');
+                            setBookingError(null);
+                            setBookingSuccess(null);
+                          }}
+                        >
                           Prendre RDV
                         </Button>
                       </div>
@@ -161,6 +203,158 @@ export function FindPractitioner({ onViewProfile }: FindPractitionerProps) {
           <Button variant="outline">Charger plus de praticiens</Button>
         </div>
       )}
+
+      <Dialog
+        open={!!bookingPractitioner}
+        onOpenChange={(open) => {
+          if (!open) {
+            setBookingPractitioner(null);
+            setBookingError(null);
+            setBookingSuccess(null);
+            setBookingSaving(false);
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Prendre rendez-vous</DialogTitle>
+          </DialogHeader>
+          {bookingPractitioner && (
+            <form
+              className="space-y-4"
+              onSubmit={async (e) => {
+                e.preventDefault();
+                setBookingError(null);
+                setBookingSuccess(null);
+
+                if (userRole !== 'EMPLOYEE') {
+                  setBookingError(
+                    'La prise de rendez-vous est réservée aux employés connectés.',
+                  );
+                  return;
+                }
+
+                if (!employeeInfo) {
+                  setBookingError(
+                    'Impossible de récupérer vos informations employé. Vérifiez que votre profil est bien configuré.',
+                  );
+                  return;
+                }
+
+                const employeeId = employeeInfo.id;
+                const companyId = employeeInfo.company?.id ?? employeeInfo.companyId;
+
+                if (!employeeId || !companyId) {
+                  setBookingError(
+                    'Impossible de déterminer votre entreprise ou votre profil employé.',
+                  );
+                  return;
+                }
+
+                const dt = new Date(`${bookingDate}T${bookingTime}:00`);
+                if (Number.isNaN(dt.getTime())) {
+                  setBookingError('Date ou heure invalide.');
+                  return;
+                }
+                if (dt.getTime() < Date.now()) {
+                  setBookingError('La date et l’heure doivent être dans le futur.');
+                  return;
+                }
+
+                const durationMinutes = 50;
+                const end = new Date(dt.getTime() + durationMinutes * 60 * 1000);
+
+                setBookingSaving(true);
+                try {
+                  await api.createConsultation({
+                    companyId,
+                    employeeId,
+                    practitionerId: bookingPractitioner.id,
+                    scheduledAt: dt.toISOString(),
+                    scheduledEndAt: end.toISOString(),
+                    duration: durationMinutes,
+                    format: 'VIDEO',
+                  });
+                  setBookingSuccess(
+                    'Votre demande de rendez-vous a été envoyée au praticien. Elle sera confirmée une fois acceptée.',
+                  );
+                } catch (err) {
+                  setBookingError(
+                    err instanceof Error ? err.message : 'Erreur lors de la création du rendez-vous.',
+                  );
+                } finally {
+                  setBookingSaving(false);
+                }
+              }}
+            >
+              <div className="space-y-2">
+                <p className="text-sm text-muted-foreground">
+                  Vous prenez rendez-vous avec{' '}
+                  <span className="font-medium text-foreground">
+                    {`${bookingPractitioner.title || ''} ${bookingPractitioner.firstName} ${bookingPractitioner.lastName}`.trim()}
+                  </span>
+                  .
+                </p>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="booking-date">Date</Label>
+                  <Input
+                    id="booking-date"
+                    type="date"
+                    required
+                    value={bookingDate}
+                    onChange={(e) => setBookingDate(e.target.value)}
+                    disabled={bookingSaving}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="booking-time">Heure</Label>
+                  <Input
+                    id="booking-time"
+                    type="time"
+                    required
+                    value={bookingTime}
+                    onChange={(e) => setBookingTime(e.target.value)}
+                    disabled={bookingSaving}
+                  />
+                </div>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Durée par défaut : 50 minutes. Les créneaux déjà réservés par ce praticien sont
+                automatiquement refusés.
+              </p>
+              {bookingError && (
+                <p className="text-sm text-destructive">
+                  {bookingError}
+                </p>
+              )}
+              {bookingSuccess && (
+                <p className="text-sm text-emerald-600">
+                  {bookingSuccess}
+                </p>
+              )}
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setBookingPractitioner(null);
+                    setBookingError(null);
+                    setBookingSuccess(null);
+                  }}
+                  disabled={bookingSaving}
+                >
+                  Annuler
+                </Button>
+                <Button type="submit" disabled={bookingSaving}>
+                  {bookingSaving ? 'Envoi…' : 'Confirmer la demande'}
+                </Button>
+              </DialogFooter>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

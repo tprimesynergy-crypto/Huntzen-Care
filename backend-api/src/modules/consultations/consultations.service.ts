@@ -1,5 +1,5 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { ConsultationFormat, NotificationType } from '@prisma/client';
+import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
+import { ConsultationFormat, ConsultationStatus, NotificationType } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { CreateConsultationDto } from './dto/create-consultation.dto';
@@ -12,6 +12,30 @@ export class ConsultationsService {
   ) {}
 
   async create(userId: string, dto: CreateConsultationDto) {
+    const start = new Date(dto.scheduledAt);
+    const end = new Date(dto.scheduledEndAt);
+
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end <= start) {
+      throw new BadRequestException('Plage horaire invalide pour la consultation.');
+    }
+
+    // Check that the practitioner is available (no overlapping consultation)
+    const overlapping = await this.prisma.consultation.findFirst({
+      where: {
+        practitionerId: dto.practitionerId,
+        status: { not: 'CANCELLED' },
+        // Overlap condition: existing.start < newEnd AND existing.end > newStart
+        scheduledAt: { lt: end },
+        scheduledEndAt: { gt: start },
+      },
+    });
+
+    if (overlapping) {
+      throw new BadRequestException(
+        'Le praticien n’est pas disponible à cet horaire. Merci de choisir un autre créneau.',
+      );
+    }
+
     // Generate room name
     const roomName = `huntzen-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
@@ -20,11 +44,12 @@ export class ConsultationsService {
         companyId: dto.companyId,
         employeeId: dto.employeeId,
         practitionerId: dto.practitionerId,
-        scheduledAt: new Date(dto.scheduledAt),
-        scheduledEndAt: new Date(dto.scheduledEndAt),
+        scheduledAt: start,
+        scheduledEndAt: end,
         duration: dto.duration || 50,
         format: (dto.format as ConsultationFormat) || ConsultationFormat.VIDEO,
-        status: 'SCHEDULED',
+        // Newly created consultations are pending (SCHEDULED) until the practitioner confirms.
+        status: ConsultationStatus.SCHEDULED,
         roomName,
       },
       include: {
@@ -50,6 +75,39 @@ export class ConsultationsService {
         },
       },
     });
+
+    // Notify practitioner that a new consultation has been requested (non-blocking)
+    try {
+      const practitionerUserId = consultation.practitioner?.user?.id;
+      if (practitionerUserId) {
+        const employeeName = consultation.employee
+          ? `${consultation.employee.firstName} ${consultation.employee.lastName}`
+          : 'Un patient';
+
+        const formattedDate = consultation.scheduledAt.toLocaleDateString('fr-FR', {
+          weekday: 'long',
+          day: 'numeric',
+          month: 'long',
+          year: 'numeric',
+        });
+        const formattedTime = consultation.scheduledAt.toLocaleTimeString('fr-FR', {
+          hour: '2-digit',
+          minute: '2-digit',
+        });
+
+        await this.notificationsService.create(
+          practitionerUserId,
+          NotificationType.SYSTEM,
+          'Nouvelle demande de consultation',
+          `${employeeName} a demandé une nouvelle consultation le ${formattedDate} à ${formattedTime}.`,
+          `/consultations/${consultation.id}`,
+          'Voir la consultation',
+        );
+      }
+    } catch (error) {
+      // Log but do not fail the booking
+      console.error('[ConsultationsService.create] Failed to create notification:', error);
+    }
 
     return consultation;
   }
@@ -160,17 +218,76 @@ export class ConsultationsService {
 
   async cancel(id: string, userId: string, userRole: string) {
     const consultation = await this.findOne(id, userId, userRole);
-    if (consultation.status === 'CANCELLED') {
+    if (consultation.status === ConsultationStatus.CANCELLED) {
       return consultation;
     }
     return this.prisma.consultation.update({
       where: { id },
-      data: { status: 'CANCELLED' },
+      data: { status: ConsultationStatus.CANCELLED },
       include: {
         employee: { include: { user: { select: { id: true, email: true } } } },
         practitioner: { include: { user: { select: { id: true, email: true } } } },
       },
     });
+  }
+
+  async confirm(id: string, userId: string, userRole: string) {
+    const consultation = await this.findOne(id, userId, userRole);
+
+    if (userRole !== 'PRACTITIONER') {
+      throw new ForbiddenException('Only practitioners can confirm consultations');
+    }
+
+    if (consultation.status === ConsultationStatus.CANCELLED) {
+      throw new BadRequestException('Cannot confirm a cancelled consultation');
+    }
+
+    if (consultation.status === ConsultationStatus.CONFIRMED) {
+      return consultation;
+    }
+
+    const updated = await this.prisma.consultation.update({
+      where: { id },
+      data: { status: ConsultationStatus.CONFIRMED },
+      include: {
+        employee: { include: { user: { select: { id: true, email: true } } } },
+        practitioner: { include: { user: { select: { id: true, email: true } } } },
+      },
+    });
+
+    // Notify employee that the consultation has been confirmed
+    try {
+      const employeeUserId = updated.employee?.user?.id;
+      if (employeeUserId) {
+        const practitionerName = updated.practitioner
+          ? `${updated.practitioner.title || ''} ${updated.practitioner.firstName} ${updated.practitioner.lastName}`.trim()
+          : 'Votre praticien';
+
+        const formattedDate = updated.scheduledAt.toLocaleDateString('fr-FR', {
+          weekday: 'long',
+          day: 'numeric',
+          month: 'long',
+          year: 'numeric',
+        });
+        const formattedTime = updated.scheduledAt.toLocaleTimeString('fr-FR', {
+          hour: '2-digit',
+          minute: '2-digit',
+        });
+
+        await this.notificationsService.create(
+          employeeUserId,
+          NotificationType.CONSULTATION_CONFIRMED,
+          'Consultation confirmée',
+          `${practitionerName} a confirmé votre consultation du ${formattedDate} à ${formattedTime}.`,
+          `/consultations/${updated.id}`,
+          'Voir la consultation',
+        );
+      }
+    } catch (error) {
+      console.error('[ConsultationsService.confirm] Failed to create confirmation notification:', error);
+    }
+
+    return updated;
   }
 
   async reschedule(
@@ -180,7 +297,7 @@ export class ConsultationsService {
     dto: { scheduledAt: string; scheduledEndAt: string },
   ) {
     const consultation = await this.findOne(id, userId, userRole);
-    if (consultation.status === 'CANCELLED') {
+    if (consultation.status === ConsultationStatus.CANCELLED) {
       throw new NotFoundException('Cannot reschedule a cancelled consultation');
     }
     const duration =

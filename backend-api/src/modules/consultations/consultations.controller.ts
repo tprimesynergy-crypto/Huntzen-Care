@@ -33,6 +33,11 @@ export class ConsultationsController {
     return this.consultationsService.cancel(id, req.user.id, req.user.role);
   }
 
+  @Patch(':id/confirm')
+  async confirm(@Param('id') id: string, @Request() req) {
+    return this.consultationsService.confirm(id, req.user.id, req.user.role);
+  }
+
   @Patch(':id/reschedule')
   async reschedule(
     @Param('id') id: string,

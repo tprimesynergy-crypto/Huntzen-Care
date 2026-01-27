@@ -163,6 +163,12 @@ class ApiClient {
     });
   }
 
+  async confirmConsultation(id: string) {
+    return this.request<any>(`/consultations/${id}/confirm`, {
+      method: 'PATCH',
+    });
+  }
+
   // Practitioners
   async getPractitioners() {
     return this.request<any[]>('/practitioners');

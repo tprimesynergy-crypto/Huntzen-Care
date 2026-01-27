@@ -23,9 +23,16 @@ function formatMessageTime(d: string | Date): string {
 interface MessagesProps {
   preselectConsultationId?: string | null;
   onPreselectUsed?: () => void;
+  preselectPractitionerId?: string | null;
+  onPreselectPractitionerUsed?: () => void;
 }
 
-export function Messages({ preselectConsultationId, onPreselectUsed }: MessagesProps) {
+export function Messages({
+  preselectConsultationId,
+  onPreselectUsed,
+  preselectPractitionerId,
+  onPreselectPractitionerUsed,
+}: MessagesProps) {
   const [conversations, setConversations] = useState<any[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [messages, setMessages] = useState<any[]>([]);
@@ -33,10 +40,13 @@ export function Messages({ preselectConsultationId, onPreselectUsed }: MessagesP
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const preselectRef = useRef<string | null>(null);
+  const preselectPractitionerRef = useRef<string | null>(null);
   preselectRef.current = preselectConsultationId ?? null;
+  preselectPractitionerRef.current = preselectPractitionerId ?? null;
 
   const loadConversations = useCallback(async () => {
     const preselectAtStart = preselectRef.current;
+    const preselectPractitionerAtStart = preselectPractitionerRef.current;
     try {
       const list = await api.getConversations();
       const arr = Array.isArray(list) ? list : [];
@@ -44,6 +54,19 @@ export function Messages({ preselectConsultationId, onPreselectUsed }: MessagesP
       if (preselectAtStart && arr.some((c: { id: string }) => c.id === preselectAtStart)) {
         setSelectedId(preselectAtStart);
         onPreselectUsed?.();
+      } else if (
+        preselectPractitionerAtStart &&
+        arr.some((c: { practitionerId?: string }) => c.practitionerId === preselectPractitionerAtStart)
+      ) {
+        const match = arr.find(
+          (c: { practitionerId?: string }) => c.practitionerId === preselectPractitionerAtStart,
+        );
+        if (match) {
+          setSelectedId(match.id);
+          onPreselectPractitionerUsed?.();
+        } else {
+          setSelectedId((prev) => (prev ? prev : arr[0]?.id ?? null));
+        }
       } else {
         setSelectedId((prev) => (prev ? prev : arr[0]?.id ?? null));
       }
@@ -52,7 +75,7 @@ export function Messages({ preselectConsultationId, onPreselectUsed }: MessagesP
     } finally {
       setLoading(false);
     }
-  }, [onPreselectUsed]);
+  }, [onPreselectUsed, onPreselectPractitionerUsed]);
 
   useEffect(() => {
     loadConversations();
@@ -78,6 +101,8 @@ export function Messages({ preselectConsultationId, onPreselectUsed }: MessagesP
       setInput('');
       const list = await api.getMessages(selectedId);
       setMessages(Array.isArray(list) ? list : []);
+      // Refresh conversations so last message preview and time are up to date
+      await loadConversations();
     } catch (e) {
       console.error(e);
     } finally {

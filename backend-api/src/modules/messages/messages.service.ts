@@ -64,16 +64,25 @@ export class MessagesService {
       orderBy: { scheduledAt: 'desc' },
     });
     const isEmployee = userRole === 'EMPLOYEE';
-    return consultations.map((c) => {
+
+    // Group conversations so there is only ONE per practitioner (for employees)
+    // and ONE per employee (for practitioners), even if multiple consultations exist.
+    const grouped = new Map<string, any>();
+
+    consultations.forEach((c) => {
       const last = c.messages[0];
       const p = c.practitioner as { title?: string; firstName: string; lastName: string; specialty?: string };
       const e = c.employee as { firstName: string; lastName: string };
       const name = isEmployee
         ? `${p.title || ''} ${p.firstName} ${p.lastName}`.trim()
         : `${e.firstName} ${e.lastName}`;
-      return {
+
+      const key = isEmployee ? c.practitionerId : c.employeeId;
+      const conversation = {
         id: c.id,
         consultationId: c.id,
+        practitionerId: c.practitionerId,
+        employeeId: c.employeeId,
         practitioner: isEmployee ? name : undefined,
         employee: !isEmployee ? name : undefined,
         specialty: isEmployee ? p.specialty : undefined,
@@ -84,7 +93,21 @@ export class MessagesService {
         lastMessageTime: last?.createdAt ?? c.createdAt,
         unread: 0,
       };
+
+      const existing = grouped.get(key);
+      if (!existing) {
+        grouped.set(key, conversation);
+      } else {
+        // Keep the most recent conversation based on lastMessageTime
+        const existingTime = new Date(existing.lastMessageTime).getTime();
+        const currentTime = new Date(conversation.lastMessageTime).getTime();
+        if (currentTime > existingTime) {
+          grouped.set(key, conversation);
+        }
+      }
     });
+
+    return Array.from(grouped.values());
   }
 
   async getByConsultation(consultationId: string, userId: string) {

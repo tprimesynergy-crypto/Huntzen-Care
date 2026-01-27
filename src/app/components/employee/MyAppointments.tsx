@@ -17,7 +17,7 @@ import { api } from '@/app/services/api';
 
 interface MyAppointmentsProps {
   onNavigate?: (tab: string) => void;
-  onNavigateToMessages?: (consultationId: string) => void;
+  onNavigateToMessages?: (consultationId: string, practitionerId?: string) => void;
   userRole?: string | null;
 }
 
@@ -47,14 +47,21 @@ function normalize(list: any[], now: Date, userRole?: string | null) {
         ? `${c.employee?.firstName?.[0] || ''}${c.employee?.lastName?.[0] || ''}`.toUpperCase() || '?'
         : `${c.practitioner?.firstName?.[0] || ''}${c.practitioner?.lastName?.[0] || ''}`.toUpperCase();
       
+      // Backend semantics:
+      // - SCHEDULED = en attente de confirmation
+      // - CONFIRMED = confirmé
+      const status: 'pending' | 'confirmed' =
+        c.status === 'CONFIRMED' ? 'confirmed' : 'pending';
+
       return {
         id: c.id,
+        practitionerId: c.practitionerId,
         practitioner: displayName,
         specialty: displayInfo,
         date: new Date(c.scheduledAt).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }),
         time: `${new Date(c.scheduledAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })} - ${new Date(c.scheduledEndAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`,
         type: c.format === 'VIDEO' ? 'Visioconférence' : c.format === 'AUDIO' ? 'Appel audio' : 'En personne',
-        status: c.status === 'CONFIRMED' ? 'confirmed' : 'scheduled',
+        status,
         avatar,
         roomName: c.roomName,
         canJoin,
@@ -82,6 +89,7 @@ function normalize(list: any[], now: Date, userRole?: string | null) {
       
       return {
         id: c.id,
+        practitionerId: c.practitionerId,
         practitioner: displayName,
         specialty: displayInfo,
         date: new Date(c.scheduledAt).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }),
@@ -185,9 +193,15 @@ export function MyAppointments({ onNavigate, onNavigateToMessages, userRole }: M
                         <h3 className="text-lg font-semibold text-foreground">{a.practitioner}</h3>
                         <p className="text-sm text-muted-foreground">{a.specialty}</p>
                       </div>
-                      <span className="px-3 py-1 bg-[#5CB85C]/10 text-[#5CB85C] text-sm font-medium rounded-full">
-                        Confirmé
-                      </span>
+                      {a.status === 'pending' ? (
+                        <span className="px-3 py-1 bg-[#F39C12]/10 text-[#F39C12] text-sm font-medium rounded-full">
+                          En attente de confirmation
+                        </span>
+                      ) : (
+                        <span className="px-3 py-1 bg-[#5CB85C]/10 text-[#5CB85C] text-sm font-medium rounded-full">
+                          Confirmé
+                        </span>
+                      )}
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-4 mb-4">
                       <div className="flex items-center gap-2 text-sm">
@@ -216,7 +230,9 @@ export function MyAppointments({ onNavigate, onNavigateToMessages, userRole }: M
                       </Button>
                       <Button
                         variant="outline"
-                        onClick={() => (onNavigateToMessages ? onNavigateToMessages(a.id) : onNavigate?.('messages'))}
+                        onClick={() =>
+                          (onNavigateToMessages ? onNavigateToMessages(a.id, a.practitionerId) : onNavigate?.('messages'))
+                        }
                       >
                         <MessageSquare className="w-4 h-4 mr-2" /> Envoyer un message
                       </Button>
@@ -237,6 +253,26 @@ export function MyAppointments({ onNavigate, onNavigateToMessages, userRole }: M
                       >
                         <Calendar className="w-4 h-4 mr-2" /> Reprogrammer
                       </Button>
+                      {userRole === 'PRACTITIONER' && a.status === 'pending' && (
+                        <Button
+                          variant="outline"
+                          onClick={async () => {
+                            try {
+                              await api.confirmConsultation(a.id);
+                              await load();
+                            } catch (err) {
+                              console.error(err);
+                              window.alert(
+                                err instanceof Error
+                                  ? err.message
+                                  : 'Erreur lors de la confirmation du rendez-vous.',
+                              );
+                            }
+                          }}
+                        >
+                          Confirmer le rendez-vous
+                        </Button>
+                      )}
                       <Button
                         variant="ghost"
                         className="text-destructive"
@@ -323,7 +359,9 @@ export function MyAppointments({ onNavigate, onNavigateToMessages, userRole }: M
                       </Button>
                       <Button
                         variant="outline"
-                        onClick={() => (onNavigateToMessages ? onNavigateToMessages(a.id) : onNavigate?.('messages'))}
+                        onClick={() =>
+                          (onNavigateToMessages ? onNavigateToMessages(a.id, a.practitionerId) : onNavigate?.('messages'))
+                        }
                       >
                         <MessageSquare className="w-4 h-4 mr-2" /> Envoyer un message
                       </Button>
