@@ -1,11 +1,15 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { ConsultationFormat } from '@prisma/client';
+import { ConsultationFormat, NotificationType } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { CreateConsultationDto } from './dto/create-consultation.dto';
 
 @Injectable()
 export class ConsultationsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private notificationsService: NotificationsService,
+  ) {}
 
   async create(userId: string, dto: CreateConsultationDto) {
     // Generate room name
@@ -181,7 +185,8 @@ export class ConsultationsService {
     }
     const duration =
       (new Date(dto.scheduledEndAt).getTime() - new Date(dto.scheduledAt).getTime()) / (60 * 1000);
-    return this.prisma.consultation.update({
+    
+    const updatedConsultation = await this.prisma.consultation.update({
       where: { id },
       data: {
         scheduledAt: new Date(dto.scheduledAt),
@@ -193,5 +198,80 @@ export class ConsultationsService {
         practitioner: { include: { user: { select: { id: true, email: true } } } },
       },
     });
+
+    // Send notification to the other party (non-blocking - don't fail if notification fails)
+    try {
+      const newDate = new Date(dto.scheduledAt);
+      const formattedDate = newDate.toLocaleDateString('fr-FR', { 
+        weekday: 'long', 
+        day: 'numeric', 
+        month: 'long', 
+        year: 'numeric' 
+      });
+      const formattedTime = newDate.toLocaleTimeString('fr-FR', { 
+        hour: '2-digit', 
+        minute: '2-digit' 
+      });
+
+      if (userRole === 'EMPLOYEE') {
+        // Employee rescheduled → notify practitioner
+        const practitionerUserId = updatedConsultation.practitioner?.user?.id;
+        console.log('[Reschedule] Employee rescheduled, practitionerUserId:', practitionerUserId);
+        console.log('[Reschedule] Updated consultation:', JSON.stringify(updatedConsultation, null, 2));
+        
+        if (practitionerUserId) {
+          const employeeName = updatedConsultation.employee 
+            ? `${updatedConsultation.employee.firstName} ${updatedConsultation.employee.lastName}`
+            : 'Un patient';
+          
+          console.log('[Reschedule] Creating notification for practitioner:', practitionerUserId);
+          const notification =           await this.notificationsService.create(
+            practitionerUserId,
+            NotificationType.CONSULTATION_RESCHEDULED,
+            'Consultation reprogrammée',
+            `${employeeName} a reprogrammé votre consultation au ${formattedDate} à ${formattedTime}.`,
+            `/consultations/${id}`,
+            'Voir la consultation'
+          );
+          console.log('[Reschedule] Notification created successfully:', notification.id);
+        } else {
+          console.warn('[Reschedule] No practitioner user ID found in consultation');
+        }
+      } else if (userRole === 'PRACTITIONER') {
+        // Practitioner rescheduled → notify employee
+        const employeeUserId = updatedConsultation.employee?.user?.id;
+        console.log('[Reschedule] Practitioner rescheduled, employeeUserId:', employeeUserId);
+        console.log('[Reschedule] Updated consultation:', JSON.stringify(updatedConsultation, null, 2));
+        
+        if (employeeUserId) {
+          const practitionerName = updatedConsultation.practitioner
+            ? `${updatedConsultation.practitioner.title || ''} ${updatedConsultation.practitioner.firstName} ${updatedConsultation.practitioner.lastName}`.trim()
+            : 'Votre praticien';
+          
+          console.log('[Reschedule] Creating notification for employee:', employeeUserId);
+          const notification =           await this.notificationsService.create(
+            employeeUserId,
+            NotificationType.CONSULTATION_RESCHEDULED,
+            'Consultation reprogrammée',
+            `${practitionerName} a reprogrammé votre consultation au ${formattedDate} à ${formattedTime}.`,
+            `/consultations/${id}`,
+            'Voir la consultation'
+          );
+          console.log('[Reschedule] Notification created successfully:', notification.id);
+        } else {
+          console.warn('[Reschedule] No employee user ID found in consultation');
+        }
+      } else {
+        console.warn('[Reschedule] Unknown user role:', userRole);
+      }
+    } catch (error) {
+      // Log error but don't fail the reschedule operation
+      console.error('[Reschedule] Failed to create reschedule notification:', error);
+      console.error('[Reschedule] Error details:', error instanceof Error ? error.message : String(error));
+      console.error('[Reschedule] Error stack:', error instanceof Error ? error.stack : 'No stack trace');
+      // The consultation was already updated successfully, so we continue
+    }
+
+    return updatedConsultation;
   }
 }

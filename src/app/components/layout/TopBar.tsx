@@ -48,6 +48,22 @@ export function TopBar({ onViewCompany, onViewProfile, onLogout, profileRefreshK
 
   useEffect(() => {
     refreshUnread();
+    
+    // Auto-refresh unread count every 15 seconds
+    const interval = setInterval(() => {
+      refreshUnread();
+    }, 15000); // 15 seconds
+    
+    // Refresh when user returns to the tab/window
+    const handleFocus = () => {
+      refreshUnread();
+    };
+    window.addEventListener('focus', handleFocus);
+    
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', handleFocus);
+    };
   }, [refreshUnread]);
 
   useEffect(() => {
@@ -57,7 +73,20 @@ export function TopBar({ onViewCompany, onViewProfile, onLogout, profileRefreshK
       .then((list) => setNotifications(Array.isArray(list) ? list : []))
       .catch(() => setNotifications([]))
       .finally(() => setNotificationsLoading(false));
-  }, [notificationsOpen]);
+    
+    // Also refresh unread count when opening notifications
+    refreshUnread();
+    
+    // Auto-refresh notifications list while dropdown is open (every 10 seconds)
+    const interval = setInterval(() => {
+      api.getNotifications()
+        .then((list) => setNotifications(Array.isArray(list) ? list : []))
+        .catch(() => setNotifications([]));
+      refreshUnread();
+    }, 10000); // 10 seconds
+    
+    return () => clearInterval(interval);
+  }, [notificationsOpen, refreshUnread]);
 
   const handleMarkRead = async (id: string) => {
     try {
@@ -97,7 +126,9 @@ export function TopBar({ onViewCompany, onViewProfile, onLogout, profileRefreshK
           >
             <Bell className="w-5 h-5" />
             {unreadCount > 0 && (
-              <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" aria-hidden />
+              <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1" aria-label={`${unreadCount} notification${unreadCount > 1 ? 's' : ''} non lue${unreadCount > 1 ? 's' : ''}`}>
+                {unreadCount > 99 ? '99+' : unreadCount}
+              </span>
             )}
           </button>
           {notificationsOpen &&
