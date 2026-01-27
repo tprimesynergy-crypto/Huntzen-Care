@@ -71,7 +71,8 @@ function normalize(list: any[], now: Date, userRole?: string | null) {
       };
     });
   const pa = arr
-    .filter((c: any) => new Date(c.scheduledAt) < now || c.status === 'CANCELLED')
+    // Only keep consultations réellement effectuées (exclut les rendez-vous annulés)
+    .filter((c: any) => new Date(c.scheduledAt) < now && c.status !== 'CANCELLED')
     .sort((a: any, b: any) => new Date(b.scheduledAt).getTime() - new Date(a.scheduledAt).getTime())
     .map((c: any) => {
       // For practitioners: show employee info. For employees: show practitioner info
@@ -136,6 +137,14 @@ export function MyAppointments({ onNavigate, onNavigateToMessages, userRole }: M
   const [rescheduleTime, setRescheduleTime] = useState('');
   const [rescheduleSaving, setRescheduleSaving] = useState(false);
   const [rescheduleError, setRescheduleError] = useState<string | null>(null);
+  const [cancelData, setCancelData] = useState<{
+    id: string;
+    practitioner: string;
+    date: string;
+    time: string;
+  } | null>(null);
+  const [cancelSaving, setCancelSaving] = useState(false);
+  const [cancelError, setCancelError] = useState<string | null>(null);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -277,17 +286,14 @@ export function MyAppointments({ onNavigate, onNavigateToMessages, userRole }: M
                         variant="ghost"
                         className="text-destructive"
                         disabled={cancellingId === a.id}
-                        onClick={async () => {
-                          if (!window.confirm('Annuler ce rendez-vous ?')) return;
-                          setCancellingId(a.id);
-                          try {
-                            await api.cancelConsultation(a.id);
-                            await load();
-                          } catch (e) {
-                            console.error(e);
-                          } finally {
-                            setCancellingId(null);
-                          }
+                        onClick={() => {
+                          setCancelData({
+                            id: a.id,
+                            practitioner: a.practitioner,
+                            date: a.date,
+                            time: a.time,
+                          });
+                          setCancelError(null);
                         }}
                       >
                         {cancellingId === a.id ? 'Annulation…' : 'Annuler'}
@@ -474,6 +480,77 @@ export function MyAppointments({ onNavigate, onNavigateToMessages, userRole }: M
                 </Button>
               </DialogFooter>
             </form>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={!!cancelData}
+        onOpenChange={(open) => {
+          if (!open && !cancelSaving) {
+            setCancelData(null);
+            setCancelError(null);
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Annuler le rendez-vous</DialogTitle>
+            <DialogDescription>
+              {cancelData
+                ? `Voulez-vous vraiment annuler le rendez-vous avec ${cancelData.practitioner} le ${cancelData.date} à ${cancelData.time} ?`
+                : null}
+            </DialogDescription>
+          </DialogHeader>
+          {cancelData && (
+            <div className="space-y-4">
+              {cancelError && (
+                <p className="text-sm text-destructive">
+                  {cancelError}
+                </p>
+              )}
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setCancelData(null);
+                    setCancelError(null);
+                  }}
+                  disabled={cancelSaving}
+                >
+                  Conserver le rendez-vous
+                </Button>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  disabled={cancelSaving}
+                  onClick={async () => {
+                    if (!cancelData) return;
+                    setCancelError(null);
+                    setCancelSaving(true);
+                    setCancellingId(cancelData.id);
+                    try {
+                      await api.cancelConsultation(cancelData.id);
+                      await load();
+                      setCancelData(null);
+                    } catch (e) {
+                      console.error(e);
+                      setCancelError(
+                        e instanceof Error
+                          ? e.message
+                          : 'Une erreur est survenue lors de l’annulation du rendez-vous.',
+                      );
+                    } finally {
+                      setCancelSaving(false);
+                      setCancellingId(null);
+                    }
+                  }}
+                >
+                  {cancelSaving ? 'Annulation…' : 'Confirmer l’annulation'}
+                </Button>
+              </DialogFooter>
+            </div>
           )}
         </DialogContent>
       </Dialog>

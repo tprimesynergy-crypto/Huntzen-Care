@@ -34,6 +34,7 @@ export default function App() {
   const [profileRefreshKey, setProfileRefreshKey] = useState(0);
   const [messagesPreselectConsultationId, setMessagesPreselectConsultationId] = useState<string | null>(null);
   const [messagesPreselectPractitionerId, setMessagesPreselectPractitionerId] = useState<string | null>(null);
+  const [globalSearch, setGlobalSearch] = useState('');
 
   useLayoutEffect(() => {
     api.setOnUnauthorized(() => setIsLoggedIn(false));
@@ -107,6 +108,8 @@ export default function App() {
           <FindPractitioner
             onViewProfile={handleViewPractitionerProfile}
             userRole={userRole}
+            searchQuery={globalSearch}
+            onSearchQueryChange={setGlobalSearch}
           />
         );
       case 'appointments':
@@ -129,7 +132,7 @@ export default function App() {
           />
         );
       case 'news':
-        return <News onViewArticle={handleViewArticle} />;
+        return <News onViewArticle={handleViewArticle} searchQuery={globalSearch} />;
       case 'settings':
         return <Settings />;
       case 'profile':
@@ -242,6 +245,9 @@ export default function App() {
             setIsLoggedIn(false);
           }}
           profileRefreshKey={profileRefreshKey}
+          globalSearch={globalSearch}
+          onGlobalSearchChange={setGlobalSearch}
+          onGlobalSearchSubmit={() => setActiveTab('practitioners')}
         />
 
         {/* Content Area */}

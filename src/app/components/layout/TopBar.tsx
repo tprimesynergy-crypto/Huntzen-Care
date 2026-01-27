@@ -11,9 +11,20 @@ interface TopBarProps {
   onViewProfile?: () => void;
   onLogout?: () => void;
   profileRefreshKey?: number;
+  globalSearch?: string;
+  onGlobalSearchChange?: (value: string) => void;
+  onGlobalSearchSubmit?: () => void;
 }
 
-export function TopBar({ onViewCompany, onViewProfile, onLogout, profileRefreshKey }: TopBarProps) {
+export function TopBar({
+  onViewCompany,
+  onViewProfile,
+  onLogout,
+  profileRefreshKey,
+  globalSearch,
+  onGlobalSearchChange,
+  onGlobalSearchSubmit,
+}: TopBarProps) {
   const [userDisplay, setUserDisplay] = useState<{ name: string; role: string; initials: string } | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
@@ -107,6 +118,13 @@ export function TopBar({ onViewCompany, onViewProfile, onLogout, profileRefreshK
             type="text"
             placeholder="Rechercher un praticien, un article..."
             className="pl-10 bg-input-background border-border"
+            value={globalSearch ?? ''}
+            onChange={(e) => onGlobalSearchChange?.(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                onGlobalSearchSubmit?.();
+              }
+            }}
           />
         </div>
       </div>

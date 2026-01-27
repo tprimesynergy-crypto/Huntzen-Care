@@ -5,9 +5,10 @@ import { api } from '@/app/services/api';
 
 interface NewsProps {
   onViewArticle?: (articleId: string) => void;
+  searchQuery?: string;
 }
 
-export function News({ onViewArticle }: NewsProps) {
+export function News({ onViewArticle, searchQuery }: NewsProps) {
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -18,8 +19,23 @@ export function News({ onViewArticle }: NewsProps) {
       .finally(() => setLoading(false));
   }, []);
 
-  const featured = items[0];
-  const rest = items.slice(1);
+  const normalizedSearch = (searchQuery ?? '').trim().toLowerCase();
+  const filteredItems =
+    normalizedSearch === ''
+      ? items
+      : items.filter((n) => {
+          const title = (n?.title || '').toString().toLowerCase();
+          const content = (n?.content || '').toString().toLowerCase();
+          const author = (n?.authorName || '').toString().toLowerCase();
+          return (
+            title.includes(normalizedSearch) ||
+            content.includes(normalizedSearch) ||
+            author.includes(normalizedSearch)
+          );
+        });
+
+  const featured = filteredItems[0];
+  const rest = filteredItems.slice(1);
   const readTime = (n: any) => `${Math.max(1, Math.ceil((n?.content?.length || 0) / 200))} min`;
   const excerpt = (n: any) => (n?.content ? n.content.slice(0, 120).trim() + (n.content.length > 120 ? '…' : '') : '');
   const defaultImg = 'https://images.unsplash.com/photo-1506126613408-eca07ce68773?w=400';
@@ -35,7 +51,7 @@ export function News({ onViewArticle }: NewsProps) {
 
       {loading ? (
         <div className="text-center py-12 text-muted-foreground">Chargement…</div>
-      ) : items.length === 0 ? (
+      ) : filteredItems.length === 0 ? (
         <Card className="p-12 text-center">
           <BookOpen className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
           <p className="text-muted-foreground">Aucun article pour le moment.</p>

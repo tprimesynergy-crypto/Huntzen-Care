@@ -221,7 +221,7 @@ export class ConsultationsService {
     if (consultation.status === ConsultationStatus.CANCELLED) {
       return consultation;
     }
-    return this.prisma.consultation.update({
+    const updated = await this.prisma.consultation.update({
       where: { id },
       data: { status: ConsultationStatus.CANCELLED },
       include: {
@@ -229,6 +229,92 @@ export class ConsultationsService {
         practitioner: { include: { user: { select: { id: true, email: true } } } },
       },
     });
+
+    // Send notification to the other party about the cancellation (non-blocking)
+    try {
+      const formattedDate = updated.scheduledAt.toLocaleDateString('fr-FR', {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+      });
+      const formattedTime = updated.scheduledAt.toLocaleTimeString('fr-FR', {
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+
+      if (userRole === 'EMPLOYEE') {
+        // Employee cancelled → notify practitioner
+        const practitionerUserId = updated.practitioner?.user?.id;
+        if (practitionerUserId) {
+          const employeeName = updated.employee
+            ? `${updated.employee.firstName} ${updated.employee.lastName}`
+            : 'Un patient';
+
+          await this.notificationsService.create(
+            practitionerUserId,
+            NotificationType.CONSULTATION_CANCELLED,
+            'Consultation annulée',
+            `${employeeName} a annulé la consultation prévue le ${formattedDate} à ${formattedTime}.`,
+            `/consultations/${updated.id}`,
+            'Voir la consultation',
+          );
+        }
+      } else if (userRole === 'PRACTITIONER') {
+        // Practitioner cancelled → notify employee
+        const employeeUserId = updated.employee?.user?.id;
+        if (employeeUserId) {
+          const practitionerName = updated.practitioner
+            ? `${updated.practitioner.title || ''} ${updated.practitioner.firstName} ${updated.practitioner.lastName}`.trim()
+            : 'Votre praticien';
+
+          await this.notificationsService.create(
+            employeeUserId,
+            NotificationType.CONSULTATION_CANCELLED,
+            'Consultation annulée',
+            `${practitionerName} a annulé votre consultation du ${formattedDate} à ${formattedTime}.`,
+            `/consultations/${updated.id}`,
+            'Voir la consultation',
+          );
+        }
+      } else {
+        // Other roles (e.g. admin) - optionally notify both parties
+        const employeeUserId = updated.employee?.user?.id;
+        const practitionerUserId = updated.practitioner?.user?.id;
+        const practitionerName = updated.practitioner
+          ? `${updated.practitioner.title || ''} ${updated.practitioner.firstName} ${updated.practitioner.lastName}`.trim()
+          : 'Le praticien';
+        const employeeName = updated.employee
+          ? `${updated.employee.firstName} ${updated.employee.lastName}`
+          : 'Le patient';
+
+        if (employeeUserId) {
+          await this.notificationsService.create(
+            employeeUserId,
+            NotificationType.CONSULTATION_CANCELLED,
+            'Consultation annulée',
+            `Votre consultation avec ${practitionerName} du ${formattedDate} à ${formattedTime} a été annulée.`,
+            `/consultations/${updated.id}`,
+            'Voir la consultation',
+          );
+        }
+        if (practitionerUserId) {
+          await this.notificationsService.create(
+            practitionerUserId,
+            NotificationType.CONSULTATION_CANCELLED,
+            'Consultation annulée',
+            `La consultation avec ${employeeName} du ${formattedDate} à ${formattedTime} a été annulée.`,
+            `/consultations/${updated.id}`,
+            'Voir la consultation',
+          );
+        }
+      }
+    } catch (error) {
+      // Log but do not fail the cancellation
+      console.error('[ConsultationsService.cancel] Failed to create cancellation notification:', error);
+    }
+
+    return updated;
   }
 
   async confirm(id: string, userId: string, userRole: string) {

@@ -28,9 +28,16 @@ const SPECIALTY_LABELS: Record<string, string> = {
 interface FindPractitionerProps {
   onViewProfile?: (practitionerId: string) => void;
   userRole?: string | null;
+  searchQuery?: string;
+  onSearchQueryChange?: (value: string) => void;
 }
 
-export function FindPractitioner({ onViewProfile, userRole }: FindPractitionerProps) {
+export function FindPractitioner({
+  onViewProfile,
+  userRole,
+  searchQuery,
+  onSearchQueryChange,
+}: FindPractitionerProps) {
   const [selectedSpecialty, setSelectedSpecialty] = useState('all');
   const [practitioners, setPractitioners] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -66,11 +73,13 @@ export function FindPractitioner({ onViewProfile, userRole }: FindPractitionerPr
       });
   }, [userRole]);
 
+  const effectiveSearchName = (searchQuery ?? searchName).trim();
+
   const filtered = practitioners.filter((p) => {
     if (selectedSpecialty !== 'all' && p.specialty !== selectedSpecialty) return false;
     const name = `${p.title || ''} ${p.firstName || ''} ${p.lastName || ''}`.toLowerCase();
     const citySource = (p.timezone || '').toLowerCase();
-    const nameSearch = searchName.trim().toLowerCase();
+    const nameSearch = effectiveSearchName.toLowerCase();
     const citySearch = searchCity.trim().toLowerCase();
     if (nameSearch && !name.includes(nameSearch)) return false;
     if (citySearch && !citySource.includes(citySearch)) return false;
@@ -102,8 +111,15 @@ export function FindPractitioner({ onViewProfile, userRole }: FindPractitionerPr
               <Input
                 placeholder="Rechercher un nom..."
                 className="pl-10 bg-input-background"
-                value={searchName}
-                onChange={(e) => setSearchName(e.target.value)}
+                value={effectiveSearchName}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  if (onSearchQueryChange) {
+                    onSearchQueryChange(v);
+                  } else {
+                    setSearchName(v);
+                  }
+                }}
               />
             </div>
           </div>
