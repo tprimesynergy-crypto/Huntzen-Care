@@ -39,6 +39,7 @@ model User {
   // Relations
   employee        Employee?
   practitioner    Practitioner?
+  adminProfile    AdminProfile?
   refreshTokens   RefreshToken[]
   notifications   Notification[]
   
@@ -140,6 +141,7 @@ model Employee {
   // Relations
   consultations   Consultation[]
   journalEntries  JournalEntry[]
+  favoritePractitioners FavoritePractitioner[]
   
   @@index([companyId])
   @@index([userId])
@@ -147,7 +149,30 @@ model Employee {
 }
 
 // ============================================================
-// 4. PRATICIENS
+// 4. ADMINS (RH / HUNTZEN / SUPER_ADMIN)
+// ============================================================
+
+model AdminProfile {
+  id           String @id @default(uuid())
+  userId       String @unique @map("user_id")
+  user         User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Informations personnelles
+  firstName    String? @map("first_name")
+  lastName     String? @map("last_name")
+  phoneNumber  String? @map("phone_number")
+  position     String?   // ex. DRH, Admin HuntZen
+
+  // Métadonnées
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt      @map("updated_at")
+
+  @@index([userId])
+  @@map("admin_profiles")
+}
+
+// ============================================================
+// 5. PRATICIENS
 // ============================================================
 
 model Practitioner {
@@ -199,6 +224,7 @@ model Practitioner {
   availabilities  Availability[]
   consultations   Consultation[]
   clinicalNotes   ClinicalNote[]
+  favoritedBy     FavoritePractitioner[]
   
   @@index([specialty])
   @@index([isValidated])
@@ -218,7 +244,7 @@ enum Specialty {
 }
 
 // ============================================================
-// 5. DISPONIBILITÉS
+// 6. DISPONIBILITÉS
 // ============================================================
 
 model Availability {
@@ -257,7 +283,7 @@ enum AvailabilityType {
 }
 
 // ============================================================
-// 6. CONSULTATIONS
+// 7. CONSULTATIONS
 // ============================================================
 
 model Consultation {
@@ -333,7 +359,7 @@ enum ConsultationStatus {
 }
 
 // ============================================================
-// 7. CHAT MESSAGES
+// 8. CHAT MESSAGES
 // ============================================================
 
 model Message {
@@ -367,7 +393,7 @@ enum MessageType {
 }
 
 // ============================================================
-// 8. NOTES CLINIQUES
+// 9. NOTES CLINIQUES
 // ============================================================
 
 model ClinicalNote {
@@ -390,7 +416,7 @@ model ClinicalNote {
 }
 
 // ============================================================
-// 9. JOURNAL PERSONNEL
+// 10. JOURNAL PERSONNEL
 // ============================================================
 
 model JournalEntry {
@@ -420,7 +446,7 @@ enum Mood {
 }
 
 // ============================================================
-// 10. NEWS INTERNES
+// 11. NEWS INTERNES
 // ============================================================
 
 model News {
@@ -447,7 +473,7 @@ model News {
 }
 
 // ============================================================
-// 11. NOTIFICATIONS
+// 12. NOTIFICATIONS
 // ============================================================
 
 model Notification {
@@ -471,6 +497,24 @@ model Notification {
   @@index([isRead])
   @@index([createdAt])
   @@map("notifications")
+}
+
+// ============================================================
+// 12. EMPLOYEE FAVORITE PRACTITIONERS
+// ============================================================
+
+model FavoritePractitioner {
+  id             String       @id @default(uuid())
+  employeeId     String
+  practitionerId String
+  employee       Employee     @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  practitioner   Practitioner @relation(fields: [practitionerId], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now())
+
+  @@unique([employeeId, practitionerId])
+  @@index([employeeId])
+  @@index([practitionerId])
+  @@map("favorite_practitioners")
 }
 
 enum NotificationType {

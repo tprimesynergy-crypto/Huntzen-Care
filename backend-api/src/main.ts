@@ -14,11 +14,12 @@ async function bootstrap() {
     process.env.FRONTEND_URL,
   ].filter(Boolean) as string[];
   app.enableCors({
-    origin: (origin, cb) => {
+    origin: (origin, callback) => {
+      // !origin allows tools like Postman/Curl
       if (!origin || allowedOrigins.includes(origin)) {
-        cb(null, true);
+        callback(null, true);
       } else {
-        cb(new Error('Not allowed by CORS'));
+        callback(new Error(`Origin ${origin} not allowed by CORS`));
       }
     },
     credentials: true,

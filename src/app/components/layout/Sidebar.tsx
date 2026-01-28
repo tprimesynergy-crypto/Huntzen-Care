@@ -14,6 +14,7 @@ interface SidebarProps {
 
 export function Sidebar({ activeTab, onTabChange, onEmergencyClick, onLogout, profileRefreshKey, userRole }: SidebarProps) {
   const [userDisplay, setUserDisplay] = useState<{ name: string; initials: string } | null>(null);
+  const isDev = import.meta.env.DEV;
 
   useEffect(() => {
     api.getEmployeeMe().then((e: any) => {
@@ -33,9 +34,11 @@ export function Sidebar({ activeTab, onTabChange, onEmergencyClick, onLogout, pr
   }, [profileRefreshKey]);
 
   // Menu items vary by role
-  const isAdmin = userRole === 'SUPER_ADMIN' || userRole === 'ADMIN_HUNTZEN' || userRole === 'ADMIN_RH';
+  const isSuperAdmin = userRole === 'SUPER_ADMIN';
+  const isAdminHuntzen = userRole === 'ADMIN_HUNTZEN';
+  const isAdminRH = userRole === 'ADMIN_RH';
   const isPractitioner = userRole === 'PRACTITIONER';
-  
+
   const menuItems = isPractitioner
     ? [
         { id: 'practitioner-dashboard', label: 'Tableau de Bord', icon: Home },
@@ -43,10 +46,20 @@ export function Sidebar({ activeTab, onTabChange, onEmergencyClick, onLogout, pr
         { id: 'messages', label: 'Messages', icon: MessageSquare },
         { id: 'news', label: 'Actualités Bien-être', icon: Bell },
       ]
-    : isAdmin
+    : isSuperAdmin
     ? [
         { id: 'hr-dashboard', label: 'Tableau de Bord', icon: Home },
         { id: 'employee-usage', label: 'Suivi Employés', icon: Users },
+        { id: 'practitioner-billing', label: 'Suivi Praticiens', icon: Heart },
+      ]
+    : isAdminRH
+    ? [
+        { id: 'hr-dashboard', label: 'Tableau de Bord', icon: Home },
+        { id: 'employee-usage', label: 'Suivi Employés', icon: Users },
+      ]
+    : isAdminHuntzen
+    ? [
+        { id: 'hr-dashboard', label: 'Tableau de Bord', icon: Home },
         { id: 'practitioner-billing', label: 'Suivi Praticiens', icon: Heart },
       ]
     : [
@@ -73,7 +86,7 @@ export function Sidebar({ activeTab, onTabChange, onEmergencyClick, onLogout, pr
   ];
 
   return (
-    <div className="flex flex-col h-screen w-64 bg-[#2C3E50] text-white">
+    <div className="flex flex-col h-screen w-64 bg-[#2C3E50] text-white overflow-y-auto">
       <div className="p-6 border-b border-white/10">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
@@ -123,18 +136,20 @@ export function Sidebar({ activeTab, onTabChange, onEmergencyClick, onLogout, pr
       </nav>
 
       <div className="px-3 py-4 border-t border-white/10 space-y-1">
-        <div className="mb-3">
-          <p className="text-xs text-white/40 uppercase px-4 mb-2">Démo - Changer de vue</p>
-          {demoRoles.map((role) => (
-            <button
-              key={role.id}
-              onClick={() => onTabChange(role.id)}
-              className="w-full text-left px-4 py-2 text-xs text-white/60 hover:bg-white/5 hover:text-white rounded-lg transition-all"
-            >
-              {role.label}
-            </button>
-          ))}
-        </div>
+        {isDev && (
+          <div className="mb-3">
+            <p className="text-xs text-white/40 uppercase px-4 mb-2">Démo - Changer de vue</p>
+            {demoRoles.map((role) => (
+              <button
+                key={role.id}
+                onClick={() => onTabChange(role.id)}
+                className="w-full text-left px-4 py-2 text-xs text-white/60 hover:bg-white/5 hover:text-white rounded-lg transition-all"
+              >
+                {role.label}
+              </button>
+            ))}
+          </div>
+        )}
         {bottomItems.map((item) => {
           const Icon = item.icon;
           const isLogout = item.id === 'logout';

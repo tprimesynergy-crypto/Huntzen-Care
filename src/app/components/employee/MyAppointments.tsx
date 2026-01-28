@@ -179,16 +179,26 @@ export function MyAppointments({ onNavigate, onNavigateToMessages, userRole }: M
           {loading ? (
             <div className="text-center py-8 text-muted-foreground">Chargement…</div>
           ) : upcoming.length === 0 ? (
-            <Card className="p-12 text-center">
-              <Calendar className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
-              <h3 className="text-lg font-semibold mb-2">Aucun rendez-vous à venir</h3>
-              <p className="text-muted-foreground mb-4">
-                Prenez rendez-vous avec un praticien pour commencer votre accompagnement.
-              </p>
-              <Button className="bg-primary hover:bg-primary/90" onClick={() => onNavigate?.('practitioners')}>
-                Trouver un praticien
-              </Button>
-            </Card>
+            userRole === 'PRACTITIONER' ? (
+              <Card className="p-12 text-center">
+                <Calendar className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
+                <h3 className="text-lg font-semibold mb-2">Aucune consultation à venir</h3>
+                <p className="text-muted-foreground">
+                  Vous n&apos;avez pas encore de consultations planifiées.
+                </p>
+              </Card>
+            ) : (
+              <Card className="p-12 text-center">
+                <Calendar className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
+                <h3 className="text-lg font-semibold mb-2">Aucun rendez-vous à venir</h3>
+                <p className="text-muted-foreground mb-4">
+                  Prenez rendez-vous avec un praticien pour commencer votre accompagnement.
+                </p>
+                <Button className="bg-primary hover:bg-primary/90" onClick={() => onNavigate?.('practitioners')}>
+                  Trouver un praticien
+                </Button>
+              </Card>
+            )
           ) : (
             upcoming.map((a) => (
               <Card key={a.id} className="p-6 hover:shadow-lg transition-shadow">

@@ -19,6 +19,7 @@ import { HRDashboard } from '@/app/components/hr/HRDashboard';
 import { LandingPage } from '@/app/components/marketing/LandingPage';
 import { PrivacyPolicy } from '@/app/components/legal/PrivacyPolicy';
 import { PractitionerBilling } from '@/app/components/admin/PractitionerBilling';
+import { AdminProfile } from '@/app/components/admin/AdminProfile';
 import { EmployeeUsage } from '@/app/components/admin/EmployeeUsage';
 import { ArticlePage } from '@/app/components/employee/ArticlePage';
 import { api } from '@/app/services/api';
@@ -138,6 +139,9 @@ export default function App() {
       case 'profile':
         if (userRole === 'PRACTITIONER') {
           return <MyPractitionerProfile />;
+        }
+        if (userRole === 'SUPER_ADMIN' || userRole === 'ADMIN_HUNTZEN' || userRole === 'ADMIN_RH') {
+          return <AdminProfile />;
         }
         return <MyProfile onProfileUpdated={() => setProfileRefreshKey((k) => k + 1)} />;
       case 'practitioner-profile':

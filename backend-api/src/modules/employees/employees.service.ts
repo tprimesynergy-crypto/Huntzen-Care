@@ -59,4 +59,63 @@ export class EmployeesService {
     });
     return updated;
   }
+
+  async getFavoritePractitioners(userId: string) {
+    const employee = await this.prisma.employee.findUnique({
+      where: { userId },
+    });
+    if (!employee) {
+      throw new NotFoundException('Employee not found');
+    }
+
+    const favorites = await this.prisma.favoritePractitioner.findMany({
+      where: { employeeId: employee.id },
+      select: { practitionerId: true },
+    });
+
+    return favorites.map((f) => f.practitionerId);
+  }
+
+  async addFavoritePractitioner(userId: string, practitionerId: string) {
+    const employee = await this.prisma.employee.findUnique({
+      where: { userId },
+    });
+    if (!employee) {
+      throw new NotFoundException('Employee not found');
+    }
+
+    await this.prisma.favoritePractitioner.upsert({
+      where: {
+        employeeId_practitionerId: {
+          employeeId: employee.id,
+          practitionerId,
+        },
+      },
+      update: {},
+      create: {
+        employeeId: employee.id,
+        practitionerId,
+      },
+    });
+
+    return { ok: true };
+  }
+
+  async removeFavoritePractitioner(userId: string, practitionerId: string) {
+    const employee = await this.prisma.employee.findUnique({
+      where: { userId },
+    });
+    if (!employee) {
+      throw new NotFoundException('Employee not found');
+    }
+
+    await this.prisma.favoritePractitioner.deleteMany({
+      where: {
+        employeeId: employee.id,
+        practitionerId,
+      },
+    });
+
+    return { ok: true };
+  }
 }

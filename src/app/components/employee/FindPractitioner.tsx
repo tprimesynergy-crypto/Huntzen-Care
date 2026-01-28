@@ -50,17 +50,25 @@ export function FindPractitioner({
   const [employeeInfo, setEmployeeInfo] = useState<any | null>(null);
   const [searchName, setSearchName] = useState('');
   const [searchCity, setSearchCity] = useState('');
+  const [favoriteIds, setFavoriteIds] = useState<string[]>([]);
+  const [showMoreFilters, setShowMoreFilters] = useState(false);
+  const [onlyFavorites, setOnlyFavorites] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(6);
 
   useEffect(() => {
-    api.getPractitioners().then((list) => {
-      setPractitioners(Array.isArray(list) ? list : []);
-    }).catch(() => setPractitioners([])).finally(() => setLoading(false));
+    api.getPractitioners()
+      .then((list) => {
+        setPractitioners(Array.isArray(list) ? list : []);
+      })
+      .catch(() => setPractitioners([]))
+      .finally(() => setLoading(false));
   }, []);
 
   useEffect(() => {
     // Only employees have an Employee profile; avoid 404s for practitioners / admins.
     if (userRole !== 'EMPLOYEE') {
       setEmployeeInfo(null);
+      setFavoriteIds([]);
       return;
     }
     // Preload employee info (company + employee id) for booking
@@ -71,7 +79,37 @@ export function FindPractitioner({
       .catch(() => {
         setEmployeeInfo(null);
       });
+
+    // Load favorites for this employee
+    api
+      .getEmployeeFavoritePractitioners()
+      .then((ids) => {
+        setFavoriteIds(Array.isArray(ids) ? ids : []);
+      })
+      .catch(() => {
+        setFavoriteIds([]);
+      });
   }, [userRole]);
+
+  const toggleFavorite = (id: string) => {
+    setFavoriteIds((prev) => {
+      const exists = prev.includes(id);
+      if (exists) {
+        // Optimistically update state, then call API to remove
+        api.removeEmployeeFavoritePractitioner(id).catch(() => {
+          // On error, re-add id
+          setFavoriteIds((current) => (current.includes(id) ? current : [...current, id]));
+        });
+        return prev.filter((x) => x !== id);
+      }
+      // Optimistically add, then call API
+      api.addEmployeeFavoritePractitioner(id).catch(() => {
+        // On error, remove id again
+        setFavoriteIds((current) => current.filter((x) => x !== id));
+      });
+      return [...prev, id];
+    });
+  };
 
   const effectiveSearchName = (searchQuery ?? searchName).trim();
 
@@ -83,8 +121,11 @@ export function FindPractitioner({
     const citySearch = searchCity.trim().toLowerCase();
     if (nameSearch && !name.includes(nameSearch)) return false;
     if (citySearch && !citySource.includes(citySearch)) return false;
+    if (onlyFavorites && !favoriteIds.includes(p.id)) return false;
     return true;
   });
+
+  const visiblePractitioners = filtered.slice(0, visibleCount);
 
   const specialties = [
     { value: 'all', label: 'Toutes les spécialités' },
@@ -147,10 +188,31 @@ export function FindPractitioner({
 
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">{filtered.length} praticiens disponibles</p>
-        <Button variant="outline" size="sm">
-          <Filter className="w-4 h-4 mr-2" /> Plus de filtres
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setShowMoreFilters((prev) => !prev)}
+        >
+          <Filter className="w-4 h-4 mr-2" /> {showMoreFilters ? 'Moins de filtres' : 'Plus de filtres'}
         </Button>
       </div>
+
+      {showMoreFilters && (
+        <Card className="p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <Input
+              id="only-favorites"
+              type="checkbox"
+              className="w-4 h-4"
+              checked={onlyFavorites}
+              onChange={(e) => setOnlyFavorites(e.target.checked)}
+            />
+            <Label htmlFor="only-favorites" className="text-sm">
+              Afficher uniquement mes praticiens favoris
+            </Label>
+          </div>
+        </Card>
+      )}
 
       {loading ? (
         <div className="text-center py-12 text-muted-foreground">Chargement…</div>
@@ -160,7 +222,7 @@ export function FindPractitioner({
         </Card>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {filtered.map((p) => {
+          {visiblePractitioners.map((p) => {
             const name = `${p.title || ''} ${p.firstName} ${p.lastName}`.trim();
             const avatar = `${p.firstName?.[0] || ''}${p.lastName?.[0] || ''}`.toUpperCase();
             const specialtyLabel = SPECIALTY_LABELS[p.specialty] ?? p.specialty ?? '';
@@ -168,6 +230,7 @@ export function FindPractitioner({
             if (p.offersVideo) types.push('Visio');
             if (p.offersPhone) types.push('Téléphone');
             types.push('Présentiel');
+            const isFavorite = favoriteIds.includes(p.id);
             return (
               <Card key={p.id} className="p-6 hover:shadow-lg transition-shadow duration-200">
                 <div className="flex gap-4">
@@ -180,9 +243,18 @@ export function FindPractitioner({
                         <h3 className="text-lg font-semibold text-foreground hover:text-primary transition-colors">{name}</h3>
                         <p className="text-sm text-primary font-medium">{specialtyLabel}</p>
                       </div>
-                      <Button variant="ghost" size="icon">
-                        <Heart className="w-5 h-5" />
-                      </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          aria-pressed={isFavorite}
+                          onClick={() => toggleFavorite(p.id)}
+                        >
+                          <Heart
+                            className={`w-5 h-5 transition-colors ${
+                              isFavorite ? 'text-red-500 fill-red-500' : 'text-muted-foreground'
+                            }`}
+                          />
+                        </Button>
                     </div>
                     <div className="flex items-center gap-2 mb-3">
                       {p.experience != null && (
@@ -233,9 +305,14 @@ export function FindPractitioner({
         </div>
       )}
 
-      {!loading && filtered.length > 0 && (
+      {!loading && filtered.length > visibleCount && (
         <div className="flex justify-center">
-          <Button variant="outline">Charger plus de praticiens</Button>
+          <Button
+            variant="outline"
+            onClick={() => setVisibleCount((prev) => Math.min(prev + 6, filtered.length))}
+          >
+            Charger plus de praticiens
+          </Button>
         </div>
       )}
 

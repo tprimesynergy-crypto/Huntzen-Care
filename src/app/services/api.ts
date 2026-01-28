@@ -125,6 +125,19 @@ class ApiClient {
     return this.request<any>('/auth/me');
   }
 
+  async updateMe(data: {
+    email?: string;
+    firstName?: string;
+    lastName?: string;
+    phoneNumber?: string;
+    position?: string;
+  }) {
+    return this.request<any>('/auth/me', {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  }
+
   // Consultations
   async getConsultations() {
     return this.request<any[]>('/consultations');
@@ -189,6 +202,22 @@ class ApiClient {
   // Employees
   async getEmployeeMe() {
     return this.request<any>('/employees/me');
+  }
+
+  async getEmployeeFavoritePractitioners() {
+    return this.request<string[]>('/employees/me/favorite-practitioners');
+  }
+
+  async addEmployeeFavoritePractitioner(practitionerId: string) {
+    return this.request<any>(`/employees/me/favorite-practitioners/${practitionerId}`, {
+      method: 'POST',
+    });
+  }
+
+  async removeEmployeeFavoritePractitioner(practitionerId: string) {
+    return this.request<any>(`/employees/me/favorite-practitioners/${practitionerId}`, {
+      method: 'DELETE',
+    });
   }
 
   async updateEmployeeMe(data: {
@@ -269,6 +298,42 @@ class ApiClient {
       departments: string[];
       employeesByDepartment: Record<string, number>;
     }>('/hr/stats');
+  }
+
+  async getHRPractitionerStats() {
+    return this.request<any[]>('/hr/practitioners');
+  }
+
+  async getHREmployees() {
+    return this.request<any[]>('/hr/employees');
+  }
+
+  async getHRConsultations() {
+    return this.request<any[]>('/hr/consultations');
+  }
+
+  async activateEmployee(employeeId: string) {
+    return this.request<any>(`/hr/employees/${employeeId}/activate`, { method: 'PATCH' });
+  }
+
+  async deactivateEmployee(employeeId: string) {
+    return this.request<any>(`/hr/employees/${employeeId}/deactivate`, { method: 'PATCH' });
+  }
+
+  async updateHREmployee(
+    employeeId: string,
+    data: {
+      firstName?: string;
+      lastName?: string;
+      department?: string;
+      position?: string;
+      phoneNumber?: string;
+    },
+  ) {
+    return this.request<any>(`/hr/employees/${employeeId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
   }
 
   // Notifications

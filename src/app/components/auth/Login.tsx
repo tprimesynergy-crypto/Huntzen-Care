@@ -11,8 +11,9 @@ interface LoginProps {
 }
 
 export function Login({ onLoginSuccess }: LoginProps) {
-  const [email, setEmail] = useState('marc@huntzen-demo.com');
-  const [password, setPassword] = useState('Password123!');
+  const isDev = import.meta.env.DEV;
+  const [email, setEmail] = useState(isDev ? 'marc@huntzen-demo.com' : '');
+  const [password, setPassword] = useState(isDev ? 'Password123' : '');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -84,10 +85,30 @@ export function Login({ onLoginSuccess }: LoginProps) {
           </Button>
         </form>
 
-        <p className="text-xs text-muted-foreground mt-6 text-center space-y-1">
-          <span className="block">Démo : utilisez marc@huntzen-demo.com / Password123!</span>
-          <span className="block">Backend requis : <code className="bg-muted px-1 rounded">npm run dev:all</code> (frontend + API) ou <code className="bg-muted px-1 rounded">cd backend-api && npm run start:dev</code></span>
-        </p>
+        {isDev && (
+          <div className="text-xs text-muted-foreground mt-6 space-y-1">
+            <p className="font-semibold">Démo :</p>
+            <ul className="space-y-1 text-left">
+              <li>
+                <code className="bg-muted px-1 rounded">marc@huntzen-demo.com / Password123</code>{' '}
+                <span className="opacity-80">(Employé)</span>
+              </li>
+              <li>
+                <code className="bg-muted px-1 rounded">admin.rh@huntzen-demo.com / Password123</code>{' '}
+                <span className="opacity-80">(Admin RH)</span>
+              </li>
+              <li>
+                <code className="bg-muted px-1 rounded">sophie.martin@huntzen-care.com / Password123</code>{' '}
+                <span className="opacity-80">(Praticien)</span>
+              </li>
+            </ul>
+            <p>
+              Backend requis :{' '}
+              <code className="bg-muted px-1 rounded">npm run dev:all</code> (frontend + API){' '}
+              ou <code className="bg-muted px-1 rounded">cd backend-api &amp;&amp; npm run start:dev</code>
+            </p>
+          </div>
+        )}
       </Card>
     </div>
   );

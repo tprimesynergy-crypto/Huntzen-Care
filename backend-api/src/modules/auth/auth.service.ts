@@ -89,11 +89,106 @@ export class AuthService {
       return null;
     }
 
+    // Optionally load admin profile data for admin roles
+    let adminProfile: {
+      firstName: string | null;
+      lastName: string | null;
+      phoneNumber: string | null;
+      position: string | null;
+    } | null = null;
+
+    if (
+      user.role === 'SUPER_ADMIN' ||
+      user.role === 'ADMIN_HUNTZEN' ||
+      user.role === 'ADMIN_RH'
+    ) {
+      adminProfile = await this.prisma.adminProfile.findUnique({
+        where: { userId: user.id },
+        select: {
+          firstName: true,
+          lastName: true,
+          phoneNumber: true,
+          position: true,
+        },
+      });
+    }
+
     return {
       id: user.id,
       email: user.email,
       role: user.role,
       companyId: user.companyId,
+      firstName: adminProfile?.firstName ?? null,
+      lastName: adminProfile?.lastName ?? null,
+      phoneNumber: adminProfile?.phoneNumber ?? null,
+      position: adminProfile?.position ?? null,
     };
+  }
+
+  async updateMe(
+    userId: string,
+    data: {
+      email?: string;
+      firstName?: string;
+      lastName?: string;
+      phoneNumber?: string;
+      position?: string;
+    },
+  ) {
+    // Load user to know their role
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        email: true,
+        role: true,
+        companyId: true,
+      },
+    });
+
+    if (!user) {
+      throw new UnauthorizedException('Utilisateur introuvable.');
+    }
+
+    // Update basic user fields (email)
+    const userUpdates: any = {};
+    if (data.email && data.email.trim()) {
+      userUpdates.email = data.email.trim();
+    }
+
+    if (Object.keys(userUpdates).length > 0) {
+      await this.prisma.user.update({
+        where: { id: userId },
+        data: userUpdates,
+      });
+    }
+
+    // For admin roles, also upsert AdminProfile with personal info
+    if (
+      user.role === 'SUPER_ADMIN' ||
+      user.role === 'ADMIN_HUNTZEN' ||
+      user.role === 'ADMIN_RH'
+    ) {
+      const profileData: any = {};
+      if (data.firstName !== undefined) profileData.firstName = data.firstName || null;
+      if (data.lastName !== undefined) profileData.lastName = data.lastName || null;
+      if (data.phoneNumber !== undefined) profileData.phoneNumber = data.phoneNumber || null;
+      if (data.position !== undefined) profileData.position = data.position || null;
+
+      // Only upsert if there is at least one profile-related field
+      if (Object.keys(profileData).length > 0) {
+        await this.prisma.adminProfile.upsert({
+          where: { userId: userId },
+          create: {
+            userId: userId,
+            ...profileData,
+          },
+          update: profileData,
+        });
+      }
+    }
+
+    // Return the same shape as validateUser
+    return this.validateUser(userId);
   }
 }
