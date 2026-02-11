@@ -15,4 +15,17 @@ export class RegisterDto {
   @IsOptional()
   @IsString()
   companyId?: string;
+
+  /** When registering via invitation link */
+  @IsOptional()
+  @IsString()
+  invitationToken?: string;
+
+  @IsOptional()
+  @IsString()
+  firstName?: string;
+
+  @IsOptional()
+  @IsString()
+  lastName?: string;
 }

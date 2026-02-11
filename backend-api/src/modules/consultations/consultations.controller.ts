@@ -38,6 +38,11 @@ export class ConsultationsController {
     return this.consultationsService.confirm(id, req.user.id, req.user.role);
   }
 
+  @Patch(':id/complete')
+  async complete(@Param('id') id: string, @Request() req) {
+    return this.consultationsService.complete(id, req.user.id, req.user.role);
+  }
+
   @Patch(':id/reschedule')
   async reschedule(
     @Param('id') id: string,

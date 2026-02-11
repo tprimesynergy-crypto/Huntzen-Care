@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Home, Calendar, MessageSquare, BookOpen, Heart, Bell, Settings, LogOut, AlertCircle, Users } from 'lucide-react';
+import { Home, Calendar, MessageSquare, BookOpen, Heart, Bell, Settings, LogOut, AlertCircle, Users, Link2, Phone, Activity } from 'lucide-react';
 import { Button } from '@/app/components/ui/button';
 import { api } from '@/app/services/api';
 
@@ -42,25 +42,33 @@ export function Sidebar({ activeTab, onTabChange, onEmergencyClick, onLogout, pr
   const menuItems = isPractitioner
     ? [
         { id: 'practitioner-dashboard', label: 'Tableau de Bord', icon: Home },
+        { id: 'practitioners', label: 'Liste des praticiens', icon: Users },
         { id: 'appointments', label: 'Mes Consultations', icon: Calendar },
         { id: 'messages', label: 'Messages', icon: MessageSquare },
         { id: 'news', label: 'Actualités Bien-être', icon: Bell },
       ]
     : isSuperAdmin
     ? [
-        { id: 'hr-dashboard', label: 'Tableau de Bord', icon: Home },
-        { id: 'employee-usage', label: 'Suivi Employés', icon: Users },
-        { id: 'practitioner-billing', label: 'Suivi Praticiens', icon: Heart },
+        { id: 'admin-huntzen-dashboard', label: 'Tableau de Bord', icon: Home },
+        { id: 'admin-practitioners', label: 'Praticiens', icon: Heart },
+        { id: 'admin-management-admins', label: 'Admins RH / DRH', icon: Users },
+        { id: 'admin-management-companies', label: 'Entreprises', icon: Home },
+        { id: 'admin-activity-log', label: 'Journal d\'activité', icon: Activity },
       ]
     : isAdminRH
     ? [
         { id: 'hr-dashboard', label: 'Tableau de Bord', icon: Home },
+        { id: 'hr-invitations', label: 'Invitations', icon: Link2 },
         { id: 'employee-usage', label: 'Suivi Employés', icon: Users },
+        { id: 'hr-consultations', label: 'Suivi Consultations', icon: Calendar },
       ]
     : isAdminHuntzen
     ? [
-        { id: 'hr-dashboard', label: 'Tableau de Bord', icon: Home },
-        { id: 'practitioner-billing', label: 'Suivi Praticiens', icon: Heart },
+        { id: 'admin-huntzen-dashboard', label: 'Tableau de Bord', icon: Home },
+        { id: 'admin-practitioners', label: 'Praticiens', icon: Heart },
+        { id: 'admin-management-admins', label: 'Admins RH / DRH', icon: Users },
+        { id: 'admin-management-companies', label: 'Entreprises', icon: Home },
+        { id: 'admin-emergency-resources', label: 'Numéros d\'urgence & Ressources', icon: Phone },
       ]
     : [
         { id: 'dashboard', label: 'Tableau de Bord', icon: Home },

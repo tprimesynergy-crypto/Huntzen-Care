@@ -31,6 +31,42 @@ export class NotificationsService {
     });
   }
 
+  async getPreferences(userId: string) {
+    const prefs = await this.prisma.userNotificationPreferences.findUnique({
+      where: { userId },
+    });
+    return prefs ?? {
+      notificationsEnabled: true,
+      sessionReminderEnabled: true,
+      newArticlesEnabled: true,
+    };
+  }
+
+  async updatePreferences(
+    userId: string,
+    data: { notificationsEnabled?: boolean; sessionReminderEnabled?: boolean; newArticlesEnabled?: boolean },
+  ) {
+    return this.prisma.userNotificationPreferences.upsert({
+      where: { userId },
+      create: { userId, ...data },
+      update: data,
+    });
+  }
+
+  async shouldReceiveNotification(userId: string): Promise<boolean> {
+    const prefs = await this.prisma.userNotificationPreferences.findUnique({
+      where: { userId },
+    });
+    return prefs?.notificationsEnabled ?? true;
+  }
+
+  async shouldReceiveSessionReminder(userId: string): Promise<boolean> {
+    const prefs = await this.prisma.userNotificationPreferences.findUnique({
+      where: { userId },
+    });
+    return (prefs?.notificationsEnabled ?? true) && (prefs?.sessionReminderEnabled ?? true);
+  }
+
   async create(userId: string, type: NotificationType, title: string, message: string, linkUrl?: string, linkLabel?: string) {
     try {
       console.log('[NotificationsService] Creating notification:', { userId, type, title });

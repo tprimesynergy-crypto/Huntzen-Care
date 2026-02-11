@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, UseGuards, Request } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, UseGuards, Request, ForbiddenException } from '@nestjs/common';
 import { MessagesService } from './messages.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
@@ -26,5 +26,16 @@ export class MessagesController {
     @Body() body: { consultationId: string; content: string },
   ) {
     return this.messagesService.send(body.consultationId, req.user.id, body.content);
+  }
+
+  @Post('start-conversation')
+  async startConversation(
+    @Request() req: { user: { id: string; role: string } },
+    @Body() body: { practitionerId: string },
+  ) {
+    if (req.user.role !== 'EMPLOYEE') {
+      throw new ForbiddenException('Seuls les employés peuvent initier une conversation avec un praticien.');
+    }
+    return this.messagesService.startOrGetConversation(req.user.id, body.practitionerId);
   }
 }

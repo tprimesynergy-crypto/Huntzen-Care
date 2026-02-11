@@ -24,27 +24,17 @@ export class MessagesService {
     return list.map((c) => c.id);
   }
 
-  private async ensureParticipant(consultationId: string, userId: string): Promise<{ role: Role; practitioner?: any; employee?: any }> {
+  private async ensureParticipant(consultationId: string, userId: string): Promise<{ role: Role }> {
     const c = await this.prisma.consultation.findUnique({
       where: { id: consultationId },
-      include: {
-        practitioner: {
-          include: {
-            user: { select: { id: true, email: true } },
-          },
-        },
-        employee: {
-          include: {
-            user: { select: { id: true, email: true } },
-          },
-        },
+      select: {
+        employee: { select: { userId: true } },
+        practitioner: { select: { userId: true } },
       },
     });
     if (!c) throw new NotFoundException('Consultation not found');
-    if (c.employee.user.id === userId)
-      return { role: 'EMPLOYEE' as Role, employee: c.employee, practitioner: c.practitioner };
-    if (c.practitioner.user.id === userId)
-      return { role: 'PRACTITIONER' as Role, practitioner: c.practitioner, employee: c.employee };
+    if (c.employee?.userId === userId) return { role: 'EMPLOYEE' as Role };
+    if (c.practitioner?.userId === userId) return { role: 'PRACTITIONER' as Role };
     throw new NotFoundException('Not a participant');
   }
 
@@ -54,8 +44,24 @@ export class MessagesService {
     const consultations = await this.prisma.consultation.findMany({
       where: { id: { in: ids } },
       include: {
-        practitioner: { include: { user: { select: { id: true, email: true } } } },
-        employee: { include: { user: { select: { id: true, email: true } } } },
+        practitioner: {
+          select: {
+            id: true,
+            title: true,
+            firstName: true,
+            lastName: true,
+            specialty: true,
+            user: { select: { id: true, email: true } },
+          },
+        },
+        employee: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            user: { select: { id: true, email: true } },
+          },
+        },
         messages: {
           orderBy: { createdAt: 'desc' },
           take: 1,
@@ -65,17 +71,15 @@ export class MessagesService {
     });
     const isEmployee = userRole === 'EMPLOYEE';
 
-    // Group conversations so there is only ONE per practitioner (for employees)
-    // and ONE per employee (for practitioners), even if multiple consultations exist.
     const grouped = new Map<string, any>();
 
     consultations.forEach((c) => {
       const last = c.messages[0];
-      const p = c.practitioner as { title?: string; firstName: string; lastName: string; specialty?: string };
-      const e = c.employee as { firstName: string; lastName: string };
+      const p = c.practitioner as { title?: string; firstName: string; lastName: string; specialty?: string } | null;
+      const e = c.employee as { firstName: string; lastName: string } | null;
       const name = isEmployee
-        ? `${p.title || ''} ${p.firstName} ${p.lastName}`.trim()
-        : `${e.firstName} ${e.lastName}`;
+        ? (p ? `${p.title || ''} ${p.firstName} ${p.lastName}`.trim() : 'Praticien')
+        : (e ? `${e.firstName} ${e.lastName}` : 'Employé');
 
       const key = isEmployee ? c.practitionerId : c.employeeId;
       const conversation = {
@@ -85,10 +89,10 @@ export class MessagesService {
         employeeId: c.employeeId,
         practitioner: isEmployee ? name : undefined,
         employee: !isEmployee ? name : undefined,
-        specialty: isEmployee ? p.specialty : undefined,
+        specialty: isEmployee && p ? p.specialty : undefined,
         avatar: isEmployee
-          ? `${p.firstName?.[0] || ''}${p.lastName?.[0] || ''}`.toUpperCase()
-          : `${e.firstName?.[0] || ''}${e.lastName?.[0] || ''}`.toUpperCase(),
+          ? (p ? `${p.firstName?.[0] || ''}${p.lastName?.[0] || ''}`.toUpperCase() : '?')
+          : (e ? `${e.firstName?.[0] || ''}${e.lastName?.[0] || ''}`.toUpperCase() : '?'),
         lastMessage: last?.content ?? null,
         lastMessageTime: last?.createdAt ?? c.createdAt,
         unread: 0,
@@ -98,7 +102,6 @@ export class MessagesService {
       if (!existing) {
         grouped.set(key, conversation);
       } else {
-        // Keep the most recent conversation based on lastMessageTime
         const existingTime = new Date(existing.lastMessageTime).getTime();
         const currentTime = new Date(conversation.lastMessageTime).getTime();
         if (currentTime > existingTime) {
@@ -141,5 +144,52 @@ export class MessagesService {
         content,
       },
     });
+  }
+
+  /**
+   * For employees: find or create a consultation with a practitioner to enable messaging.
+   * Returns the consultation id so the first message can be sent.
+   */
+  async startOrGetConversation(userId: string, practitionerId: string) {
+    const employee = await this.prisma.employee.findUnique({
+      where: { userId },
+      select: { id: true, companyId: true },
+    });
+    if (!employee) {
+      throw new NotFoundException('Employé introuvable.');
+    }
+    if (!employee.companyId) {
+      throw new NotFoundException('Vous devez être rattaché à une entreprise pour envoyer des messages.');
+    }
+    const existing = await this.prisma.consultation.findFirst({
+      where: {
+        employeeId: employee.id,
+        practitionerId,
+      },
+      select: { id: true },
+    });
+    if (existing) {
+      return { consultationId: existing.id };
+    }
+    const farFuture = new Date();
+    farFuture.setFullYear(farFuture.getFullYear() + 1);
+    const farFutureEnd = new Date(farFuture);
+    farFutureEnd.setMinutes(farFutureEnd.getMinutes() + 50);
+    const roomName = `huntzen-msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const consultation = await this.prisma.consultation.create({
+      data: {
+        companyId: employee.companyId,
+        employeeId: employee.id,
+        practitionerId,
+        scheduledAt: farFuture,
+        scheduledEndAt: farFutureEnd,
+        duration: 50,
+        format: 'VIDEO',
+        status: 'SCHEDULED',
+        roomName,
+      },
+      select: { id: true },
+    });
+    return { consultationId: consultation.id };
   }
 }

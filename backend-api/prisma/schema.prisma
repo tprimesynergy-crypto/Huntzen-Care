@@ -42,6 +42,9 @@ model User {
   adminProfile    AdminProfile?
   refreshTokens   RefreshToken[]
   notifications   Notification[]
+  notificationPreferences UserNotificationPreferences?
+  invitationsCreated Invitation[] @relation("InvitationCreatedBy")
+  invitationsUsed    Invitation[] @relation("InvitationUsedBy")
   
   @@index([email])
   @@index([companyId])
@@ -102,8 +105,10 @@ model Company {
   // Relations
   users           User[]
   employees       Employee[]
+  practitioners   Practitioner[]
   consultations   Consultation[]
   news            News[]
+  invitations     Invitation[] @relation("CompanyInvitations")
   
   @@index([slug])
   @@index([isActive])
@@ -188,6 +193,7 @@ model Practitioner {
   
   // Spécialisation
   specialty       Specialty
+  customSpecialty String?   // Texte libre quand specialty = OTHER
   subSpecialties  String[]
   languages       String[]
   
@@ -212,6 +218,10 @@ model Practitioner {
   defaultDuration Int       @default(50)
   timezone        String    @default("Europe/Paris")
   
+  // Rattachement entreprise (optionnel)
+  companyId       String?
+  company         Company?  @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  
   // Disponibilité
   isActive        Boolean   @default(true)
   isAcceptingNewClients Boolean @default(true)
@@ -229,6 +239,7 @@ model Practitioner {
   @@index([specialty])
   @@index([isValidated])
   @@index([isActive])
+  @@index([companyId])
   @@map("practitioners")
 }
 
@@ -241,6 +252,7 @@ enum Specialty {
   COACH_MENTAL
   SEXOLOGUE
   PSYCHANALYSTE
+  OTHER
 }
 
 // ============================================================
@@ -334,6 +346,7 @@ model Consultation {
   // Relations
   messages        Message[]
   clinicalNotes   ClinicalNote[]
+  ratings         ConsultationRating[]
   
   @@index([companyId])
   @@index([employeeId])
@@ -356,6 +369,27 @@ enum ConsultationStatus {
   COMPLETED
   CANCELLED
   NO_SHOW
+}
+
+// ============================================================
+// 7b. CONSULTATION RATINGS
+// ============================================================
+
+model ConsultationRating {
+  id              String   @id @default(uuid())
+  consultationId  String
+  consultation    Consultation @relation(fields: [consultationId], references: [id], onDelete: Cascade)
+  
+  raterRole       Role     // EMPLOYEE or PRACTITIONER - who gave the rating
+  rating          Int      // 1-5
+  comment         String?  @db.Text
+  
+  createdAt       DateTime @default(now())
+  
+  @@unique([consultationId, raterRole])
+  @@index([consultationId])
+  @@index([raterRole])
+  @@map("consultation_ratings")
 }
 
 // ============================================================
@@ -473,7 +507,26 @@ model News {
 }
 
 // ============================================================
-// 12. NOTIFICATIONS
+// 12. USER NOTIFICATION PREFERENCES
+// ============================================================
+
+model UserNotificationPreferences {
+  id                   String   @id @default(uuid())
+  userId               String   @unique @map("user_id")
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  notificationsEnabled Boolean  @default(true) @map("notifications_enabled")
+  sessionReminderEnabled Boolean @default(true) @map("session_reminder_enabled")
+  newArticlesEnabled   Boolean  @default(true) @map("new_articles_enabled")
+
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt      @map("updated_at")
+
+  @@map("user_notification_preferences")
+}
+
+// ============================================================
+// 13. NOTIFICATIONS
 // ============================================================
 
 model Notification {
@@ -505,16 +558,57 @@ model Notification {
 
 model FavoritePractitioner {
   id             String       @id @default(uuid())
-  employeeId     String
-  practitionerId String
+  employeeId     String       @map("employee_id")
+  practitionerId String       @map("practitioner_id")
   employee       Employee     @relation(fields: [employeeId], references: [id], onDelete: Cascade)
   practitioner   Practitioner @relation(fields: [practitionerId], references: [id], onDelete: Cascade)
-  createdAt      DateTime     @default(now())
+  createdAt      DateTime     @default(now()) @map("created_at")
 
   @@unique([employeeId, practitionerId])
   @@index([employeeId])
   @@index([practitionerId])
   @@map("favorite_practitioners")
+}
+
+// ============================================================
+// 13. INVITATIONS (EMPLOYÉ·E·S VIA LIEN)
+// ============================================================
+
+model Invitation {
+  id              String   @id @default(uuid())
+  token           String   @unique
+
+  // Entreprise à laquelle rattacher les comptes créés via ce lien
+  companyId       String
+  company         Company  @relation("CompanyInvitations", fields: [companyId], references: [id], onDelete: Cascade)
+
+  // Email ciblé (pour invitation nominative) - NULL pour lien partagé
+  email           String?
+
+  // true = lien à usage unique / false = lien partagé réutilisable
+  singleUse       Boolean  @default(false)
+
+  // Paramètres d'expiration
+  expiresAt       DateTime?
+
+  // Créateur de l'invitation (RH, Admin, etc.)
+  createdByUserId String   @map("created_by_user_id")
+  createdBy       User     @relation("InvitationCreatedBy", fields: [createdByUserId], references: [id], onDelete: Cascade)
+
+  // Métadonnées d'utilisation
+  usedAt          DateTime?
+  usedByUserId    String?  @map("used_by_user_id")
+  usedBy          User?    @relation("InvitationUsedBy", fields: [usedByUserId], references: [id])
+
+  // Snapshot du réglage de validation auto au moment de la création
+  autoApproved    Boolean  @default(false) @map("auto_approved")
+
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  @@index([companyId])
+  @@index([email])
+  @@index([createdByUserId])
+  @@map("invitations")
 }
 
 enum NotificationType {
@@ -525,4 +619,48 @@ enum NotificationType {
   MESSAGE_RECEIVED
   NEWS_PUBLISHED
   SYSTEM
+}
+
+model EmergencyContact {
+  id        String   @id @default(uuid())
+  name      String
+  number    String
+  available String?
+  sortOrder Int      @default(0) @map("sort_order")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt      @map("updated_at")
+  @@map("emergency_contacts")
+}
+
+model EmergencyOnlineResource {
+  id          String   @id @default(uuid())
+  name        String
+  description String?  @db.Text
+  url         String
+  sortOrder   Int      @default(0) @map("sort_order")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt      @map("updated_at")
+  @@map("emergency_online_resources")
+}
+
+// ============================================================
+// ACTIVITY LOG (Super Admin audit trail)
+// ============================================================
+
+model ActivityLog {
+  id          String   @id @default(uuid())
+  actorUserId String?  @map("actor_user_id")
+  actorEmail  String   @map("actor_email")
+  actorRole   String   @map("actor_role")
+  action      String
+  entityType  String?  @map("entity_type")
+  entityId    String?  @map("entity_id")
+  details     String?  @db.Text
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([createdAt])
+  @@index([action])
+  @@index([actorUserId])
+  @@index([entityType])
+  @@map("activity_logs")
 }

@@ -10,7 +10,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/app/components/ui/dialog';
-import { Users } from 'lucide-react';
+import { Users, KeyRound, UserPlus, Trash2 } from 'lucide-react';
 import { api } from '@/app/services/api';
 
 export function EmployeeUsage() {
@@ -28,7 +28,6 @@ export function EmployeeUsage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [employees, setEmployees] = useState<any[]>([]);
-  const [consultations, setConsultations] = useState<any[]>([]);
   const [updatingEmployeeId, setUpdatingEmployeeId] = useState<string | null>(null);
   const [editingEmployee, setEditingEmployee] = useState<any | null>(null);
   const [editForm, setEditForm] = useState({
@@ -41,10 +40,26 @@ export function EmployeeUsage() {
   const [savingEdit, setSavingEdit] = useState(false);
   const [employeeSearch, setEmployeeSearch] = useState('');
   const [employeeDeptFilter, setEmployeeDeptFilter] = useState<string>('all');
-  const [consultSearch, setConsultSearch] = useState('');
-  const [consultStartDate, setConsultStartDate] = useState('');
-  const [consultEndDate, setConsultEndDate] = useState('');
-  const [consultPage, setConsultPage] = useState(1);
+  const [passwordEmployee, setPasswordEmployee] = useState<any | null>(null);
+  const [newPassword, setNewPassword] = useState('');
+  const [newPasswordConfirm, setNewPasswordConfirm] = useState('');
+  const [savingPassword, setSavingPassword] = useState(false);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [showAddEmployee, setShowAddEmployee] = useState(false);
+  const [addForm, setAddForm] = useState({
+    email: '',
+    firstName: '',
+    lastName: '',
+    department: '',
+    position: '',
+    phoneNumber: '',
+    temporaryPassword: '',
+    temporaryPasswordConfirm: '',
+  });
+  const [savingAdd, setSavingAdd] = useState(false);
+  const [addError, setAddError] = useState<string | null>(null);
+  const [deletingEmployeeId, setDeletingEmployeeId] = useState<string | null>(null);
+  const [employeeToDelete, setEmployeeToDelete] = useState<any | null>(null);
 
   useEffect(() => {
     setLoading(true);
@@ -53,13 +68,11 @@ export function EmployeeUsage() {
       api.getCompany().catch(() => null),
       api.getHRStats().catch(() => null),
       api.getHREmployees().catch(() => []),
-      api.getHRConsultations().catch(() => []),
     ])
-      .then(([c, s, emps, cons]) => {
+      .then(([c, s, emps]) => {
         setCompany(c);
         setStats(s);
         setEmployees(Array.isArray(emps) ? emps : []);
-        setConsultations(Array.isArray(cons) ? cons : []);
       })
       .catch(() => setError('Impossible de charger les données de suivi des employés.'))
       .finally(() => setLoading(false));
@@ -89,39 +102,6 @@ export function EmployeeUsage() {
     const email = (e.email || '').toLowerCase();
     return name.includes(normalizedEmpSearch) || email.includes(normalizedEmpSearch);
   });
-
-  const normalizedConsultSearch = consultSearch.trim().toLowerCase();
-  const filteredConsultations = consultations.filter((c) => {
-    // Date filter: if a start date is selected, keep only consultations on that calendar day
-    if (consultStartDate) {
-      if (!c.scheduledAt) return false;
-      const d = new Date(c.scheduledAt);
-      const year = d.getFullYear();
-      const month = String(d.getMonth() + 1).padStart(2, '0');
-      const day = String(d.getDate()).padStart(2, '0');
-      const isoDate = `${year}-${month}-${day}`;
-      if (isoDate !== consultStartDate) return false;
-    }
-
-    if (!normalizedConsultSearch) return true;
-    const employeeName = (c.employee || '').toLowerCase();
-    const practitionerName = (c.practitioner || '').toLowerCase();
-    const email = (c.employeeEmail || '').toLowerCase();
-    return (
-      employeeName.includes(normalizedConsultSearch) ||
-      practitionerName.includes(normalizedConsultSearch) ||
-      email.includes(normalizedConsultSearch)
-    );
-  });
-
-  const pageSize = 10;
-  const totalPages = Math.max(1, Math.ceil(filteredConsultations.length / pageSize));
-  const currentPage = Math.min(consultPage, totalPages);
-  const startIndex = (currentPage - 1) * pageSize;
-  const paginatedConsultations = filteredConsultations.slice(
-    startIndex,
-    startIndex + pageSize,
-  );
 
   const handleToggleEmployeeActive = async (empId: string, currentActive: boolean) => {
     setUpdatingEmployeeId(empId);
@@ -213,6 +193,10 @@ export function EmployeeUsage() {
         <div className="flex flex-col gap-3 mb-4">
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-semibold">Liste des employés</h2>
+            <Button onClick={() => setShowAddEmployee(true)} className="flex items-center gap-2">
+              <UserPlus className="w-4 h-4" />
+              Ajouter un employé
+            </Button>
           </div>
           <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
             <div className="w-full md:max-w-md">
@@ -314,6 +298,26 @@ export function EmployeeUsage() {
                         >
                           Modifier
                         </button>
+                        <button
+                          className="text-xs font-medium text-muted-foreground hover:underline inline-flex items-center gap-1"
+                          onClick={() => {
+                            setPasswordEmployee(e);
+                            setNewPassword('');
+                            setNewPasswordConfirm('');
+                            setPasswordError(null);
+                          }}
+                        >
+                          <KeyRound className="w-3.5 h-3.5" />
+                          Modifier mot de passe
+                        </button>
+                        <button
+                          className="text-xs font-medium text-destructive hover:underline inline-flex items-center gap-1 disabled:opacity-50"
+                          disabled={deletingEmployeeId === e.id}
+                          onClick={() => setEmployeeToDelete(e)}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          Supprimer
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -323,6 +327,240 @@ export function EmployeeUsage() {
           </div>
         )}
       </Card>
+
+      <Dialog
+        open={showAddEmployee}
+        onOpenChange={(open) => {
+          if (!open && !savingAdd) {
+            setShowAddEmployee(false);
+            setAddError(null);
+            setAddForm({
+              email: '',
+              firstName: '',
+              lastName: '',
+              department: '',
+              position: '',
+              phoneNumber: '',
+              temporaryPassword: '',
+              temporaryPasswordConfirm: '',
+            });
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Ajouter un employé</DialogTitle>
+          </DialogHeader>
+          <form
+            className="space-y-4"
+            onSubmit={async (e) => {
+              e.preventDefault();
+              setAddError(null);
+              if (addForm.temporaryPassword !== addForm.temporaryPasswordConfirm) {
+                setAddError('Les deux mots de passe ne correspondent pas.');
+                return;
+              }
+              if (addForm.temporaryPassword.length < 8) {
+                setAddError('Le mot de passe doit contenir au moins 8 caractères.');
+                return;
+              }
+              setSavingAdd(true);
+              try {
+                await api.createHREmployee({
+                  email: addForm.email.trim(),
+                  firstName: addForm.firstName.trim() || 'À compléter',
+                  lastName: addForm.lastName.trim() || 'À compléter',
+                  department: addForm.department.trim() || undefined,
+                  position: addForm.position.trim() || undefined,
+                  phoneNumber: addForm.phoneNumber.trim() || undefined,
+                  temporaryPassword: addForm.temporaryPassword,
+                });
+                const refreshed = await api.getHREmployees().catch(() => employees);
+                if (Array.isArray(refreshed)) setEmployees(refreshed);
+                setShowAddEmployee(false);
+                setAddForm({
+                  email: '',
+                  firstName: '',
+                  lastName: '',
+                  department: '',
+                  position: '',
+                  phoneNumber: '',
+                  temporaryPassword: '',
+                  temporaryPasswordConfirm: '',
+                });
+              } catch (err: unknown) {
+                setAddError(err instanceof Error ? err.message : 'Erreur lors de la création.');
+              } finally {
+                setSavingAdd(false);
+              }
+            }}
+          >
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="add-email">Email *</Label>
+                <Input
+                  id="add-email"
+                  type="email"
+                  value={addForm.email}
+                  onChange={(e) => setAddForm((f) => ({ ...f, email: e.target.value }))}
+                  placeholder="prenom.nom@entreprise.com"
+                  required
+                />
+              </div>
+              <div className="space-y-2 md:col-span-1" />
+              <div className="space-y-2">
+                <Label htmlFor="add-firstName">Prénom *</Label>
+                <Input
+                  id="add-firstName"
+                  value={addForm.firstName}
+                  onChange={(e) => setAddForm((f) => ({ ...f, firstName: e.target.value }))}
+                  placeholder="Prénom"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="add-lastName">Nom *</Label>
+                <Input
+                  id="add-lastName"
+                  value={addForm.lastName}
+                  onChange={(e) => setAddForm((f) => ({ ...f, lastName: e.target.value }))}
+                  placeholder="Nom"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="add-department">Département</Label>
+                <Input
+                  id="add-department"
+                  value={addForm.department}
+                  onChange={(e) => setAddForm((f) => ({ ...f, department: e.target.value }))}
+                  placeholder="Département"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="add-position">Poste</Label>
+                <Input
+                  id="add-position"
+                  value={addForm.position}
+                  onChange={(e) => setAddForm((f) => ({ ...f, position: e.target.value }))}
+                  placeholder="Poste"
+                />
+              </div>
+              <div className="space-y-2 md:col-span-2">
+                <Label htmlFor="add-phone">Téléphone</Label>
+                <Input
+                  id="add-phone"
+                  value={addForm.phoneNumber}
+                  onChange={(e) => setAddForm((f) => ({ ...f, phoneNumber: e.target.value }))}
+                  placeholder="+33 6 00 00 00 00"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="add-password">Mot de passe temporaire *</Label>
+                <Input
+                  id="add-password"
+                  type="password"
+                  value={addForm.temporaryPassword}
+                  onChange={(e) => setAddForm((f) => ({ ...f, temporaryPassword: e.target.value }))}
+                  placeholder="••••••••"
+                  minLength={8}
+                  required
+                />
+                <p className="text-xs text-muted-foreground">Minimum 8 caractères. L&apos;employé pourra se connecter immédiatement.</p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="add-password-confirm">Confirmer le mot de passe *</Label>
+                <Input
+                  id="add-password-confirm"
+                  type="password"
+                  value={addForm.temporaryPasswordConfirm}
+                  onChange={(e) => setAddForm((f) => ({ ...f, temporaryPasswordConfirm: e.target.value }))}
+                  placeholder="••••••••"
+                  minLength={8}
+                  required
+                />
+              </div>
+            </div>
+            {addError && (
+              <p className="text-sm text-destructive">{addError}</p>
+            )}
+            <DialogFooter className="mt-4">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  if (!savingAdd) setShowAddEmployee(false);
+                }}
+                disabled={savingAdd}
+              >
+                Annuler
+              </Button>
+              <Button type="submit" disabled={savingAdd}>
+                {savingAdd ? 'Création…' : 'Créer l\'employé'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={!!employeeToDelete}
+        onOpenChange={(open) => {
+          if (!open && !deletingEmployeeId) setEmployeeToDelete(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Supprimer l&apos;employé</DialogTitle>
+          </DialogHeader>
+          {employeeToDelete && (
+            <>
+              <p className="text-sm text-muted-foreground">
+                Êtes-vous sûr de vouloir supprimer{' '}
+                <strong>
+                  {[employeeToDelete.firstName, employeeToDelete.lastName].filter(Boolean).join(' ')}
+                </strong>
+                {employeeToDelete.email && (
+                  <span> ({employeeToDelete.email})</span>
+                )}
+                ? Cette action est irréversible.
+              </p>
+              <DialogFooter className="mt-4">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    if (!deletingEmployeeId) setEmployeeToDelete(null);
+                  }}
+                  disabled={deletingEmployeeId}
+                >
+                  Annuler
+                </Button>
+                <Button
+                  variant="destructive"
+                  disabled={deletingEmployeeId}
+                  onClick={async () => {
+                    if (!employeeToDelete) return;
+                    setDeletingEmployeeId(employeeToDelete.id);
+                    try {
+                      await api.deleteHREmployee(employeeToDelete.id);
+                      const refreshed = await api.getHREmployees().catch(() => employees);
+                      if (Array.isArray(refreshed)) setEmployees(refreshed);
+                      setEmployeeToDelete(null);
+                    } catch (err) {
+                      // Error could be shown via a toast - for now we just close
+                      setEmployeeToDelete(null);
+                    } finally {
+                      setDeletingEmployeeId(null);
+                    }
+                  }}
+                >
+                  {deletingEmployeeId ? 'Suppression…' : 'Supprimer'}
+                </Button>
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
 
       <Dialog
         open={!!editingEmployee}
@@ -513,137 +751,105 @@ export function EmployeeUsage() {
         </DialogContent>
       </Dialog>
 
-      <Card className="p-6">
-        <div className="flex flex-col gap-3 mb-4">
-          <div>
-            <h2 className="text-xl font-semibold">Consultations récentes</h2>
-            <p className="text-sm text-muted-foreground">
-              Filtrez par période et par nom d&apos;employé ou de praticien.
-            </p>
-          </div>
-          <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
-            <div className="w-full lg:max-w-md">
-              <Label htmlFor="consult-search" className="text-xs text-muted-foreground">
-                Nom / email
-              </Label>
-              <Input
-                id="consult-search"
-                placeholder="Rechercher un employé ou un praticien..."
-                value={consultSearch}
-                onChange={(e) => {
-                  setConsultSearch(e.target.value);
-                  setConsultPage(1);
+      <Dialog
+        open={!!passwordEmployee}
+        onOpenChange={(open) => {
+          if (!open && !savingPassword) {
+            setPasswordEmployee(null);
+            setPasswordError(null);
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Modifier le mot de passe</DialogTitle>
+          </DialogHeader>
+          {passwordEmployee && (
+            <>
+              <p className="text-sm text-muted-foreground">
+                Définir un nouveau mot de passe pour{' '}
+                <span className="font-medium text-foreground">
+                  {[passwordEmployee.firstName, passwordEmployee.lastName].filter(Boolean).join(' ')}
+                </span>
+                {passwordEmployee.email && (
+                  <span className="text-muted-foreground"> ({passwordEmployee.email})</span>
+                )}
+                . L&apos;employé pourra se connecter avec ce mot de passe (en cas d&apos;oubli).
+              </p>
+              <form
+                className="space-y-4 mt-2"
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  setPasswordError(null);
+                  if (newPassword.length < 8) {
+                    setPasswordError('Le mot de passe doit contenir au moins 8 caractères.');
+                    return;
+                  }
+                  if (newPassword !== newPasswordConfirm) {
+                    setPasswordError('Les deux mots de passe ne correspondent pas.');
+                    return;
+                  }
+                  setSavingPassword(true);
+                  try {
+                    await api.setHREmployeePassword(passwordEmployee.id, newPassword);
+                    setPasswordEmployee(null);
+                    setNewPassword('');
+                    setNewPasswordConfirm('');
+                  } catch (err: unknown) {
+                    setPasswordError(err instanceof Error ? err.message : 'Erreur lors de la mise à jour.');
+                  } finally {
+                    setSavingPassword(false);
+                  }
                 }}
-                className="mt-1"
-              />
-            </div>
-            <div className="flex flex-col sm:flex-row sm:items-end gap-3">
-              <div className="flex flex-col">
-                <Label htmlFor="consult-start" className="text-xs text-muted-foreground">
-                  Du
-                </Label>
-                <Input
-                  id="consult-start"
-                  type="date"
-                  value={consultStartDate}
-                  onChange={(e) => {
-                    setConsultStartDate(e.target.value);
-                    setConsultPage(1);
-                  }}
-                  className="mt-1"
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-        {filteredConsultations.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            Aucune consultation trouvée pour cette entreprise.
-          </p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border">
-                  <th className="text-left py-2 px-3 font-medium">Date</th>
-                  <th className="text-left py-2 px-3 font-medium">Employé</th>
-                  <th className="text-left py-2 px-3 font-medium">Praticien</th>
-                  <th className="text-left py-2 px-3 font-medium">Statut</th>
-                  <th className="text-left py-2 px-3 font-medium">Format</th>
-                </tr>
-              </thead>
-              <tbody>
-                {paginatedConsultations.map((c) => (
-                  <tr key={c.id} className="border-b border-border">
-                    <td className="py-2 px-3">
-                      {c.scheduledAt
-                        ? new Date(c.scheduledAt).toLocaleString('fr-FR', {
-                            day: '2-digit',
-                            month: '2-digit',
-                            year: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })
-                        : '—'}
-                    </td>
-                    <td className="py-2 px-3">
-                      {c.employee ?? '—'}
-                      {c.employeeEmail ? (
-                        <span className="block text-xs text-muted-foreground">{c.employeeEmail}</span>
-                      ) : null}
-                    </td>
-                    <td className="py-2 px-3">{c.practitioner ?? '—'}</td>
-                    <td className="py-2 px-3">
-                      <span
-                        className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                          c.status === 'COMPLETED'
-                            ? 'bg-emerald-100 text-emerald-700'
-                            : c.status === 'CANCELLED'
-                            ? 'bg-red-100 text-red-700'
-                            : c.status === 'CONFIRMED'
-                            ? 'bg-blue-100 text-blue-700'
-                            : c.status === 'SCHEDULED'
-                            ? 'bg-amber-100 text-amber-700'
-                            : 'bg-muted text-muted-foreground'
-                        }`}
-                      >
-                        {c.status}
-                      </span>
-                    </td>
-                    <td className="py-2 px-3">{c.format}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            <div className="flex items-center justify-between mt-4 text-sm text-muted-foreground">
-              <span>
-                Affichage {filteredConsultations.length === 0 ? 0 : startIndex + 1}–
-                {Math.min(startIndex + pageSize, filteredConsultations.length)} sur{' '}
-                {filteredConsultations.length} consultations
-              </span>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={currentPage === 1}
-                  onClick={() => setConsultPage((p) => Math.max(1, p - 1))}
-                >
-                  Précédent
-                </Button>
-                <span>Page {currentPage} / {totalPages}</span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={currentPage >= totalPages}
-                  onClick={() => setConsultPage((p) => Math.min(totalPages, p + 1))}
-                >
-                  Suivant
-                </Button>
-              </div>
-            </div>
-          </div>
-        )}
-      </Card>
+              >
+                <div className="space-y-2">
+                  <Label htmlFor="new-password">Nouveau mot de passe</Label>
+                  <Input
+                    id="new-password"
+                    type="password"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    placeholder="••••••••"
+                    minLength={8}
+                    autoComplete="new-password"
+                    disabled={savingPassword}
+                  />
+                  <p className="text-xs text-muted-foreground">Minimum 8 caractères</p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="new-password-confirm">Confirmer le mot de passe</Label>
+                  <Input
+                    id="new-password-confirm"
+                    type="password"
+                    value={newPasswordConfirm}
+                    onChange={(e) => setNewPasswordConfirm(e.target.value)}
+                    placeholder="••••••••"
+                    disabled={savingPassword}
+                  />
+                </div>
+                {passwordError && (
+                  <p className="text-sm text-destructive">{passwordError}</p>
+                )}
+                <DialogFooter className="mt-4">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      if (!savingPassword) setPasswordEmployee(null);
+                    }}
+                    disabled={savingPassword}
+                  >
+                    Annuler
+                  </Button>
+                  <Button type="submit" disabled={savingPassword}>
+                    {savingPassword ? 'Enregistrement…' : 'Enregistrer le mot de passe'}
+                  </Button>
+                </DialogFooter>
+              </form>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

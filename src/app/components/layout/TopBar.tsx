@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { Bell, Search, Building2, LogOut } from 'lucide-react';
-import { Input } from '@/app/components/ui/input';
+import { Bell, Building2, LogOut } from 'lucide-react';
 import { Button } from '@/app/components/ui/button';
 import { ThemeToggle } from '@/app/components/layout/ThemeToggle';
 import { api } from '@/app/services/api';
@@ -11,9 +10,6 @@ interface TopBarProps {
   onViewProfile?: () => void;
   onLogout?: () => void;
   profileRefreshKey?: number;
-  globalSearch?: string;
-  onGlobalSearchChange?: (value: string) => void;
-  onGlobalSearchSubmit?: () => void;
 }
 
 export function TopBar({
@@ -21,9 +17,6 @@ export function TopBar({
   onViewProfile,
   onLogout,
   profileRefreshKey,
-  globalSearch,
-  onGlobalSearchChange,
-  onGlobalSearchSubmit,
 }: TopBarProps) {
   const [userDisplay, setUserDisplay] = useState<{ name: string; role: string; initials: string } | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -110,25 +103,7 @@ export function TopBar({
   };
 
   return (
-    <div className="h-16 bg-white dark:bg-[#1a1f2e] border-b border-border flex items-center justify-between px-6 transition-colors">
-      <div className="flex-1 max-w-md">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input
-            type="text"
-            placeholder="Rechercher un praticien, un article..."
-            className="pl-10 bg-input-background border-border"
-            value={globalSearch ?? ''}
-            onChange={(e) => onGlobalSearchChange?.(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                onGlobalSearchSubmit?.();
-              }
-            }}
-          />
-        </div>
-      </div>
-
+    <div className="h-16 bg-white dark:bg-[#1a1f2e] border-b border-border flex items-center justify-end px-6 transition-colors">
       <div className="flex items-center gap-4">
         <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={onViewCompany}>
           <Building2 className="w-4 h-4 mr-2" />

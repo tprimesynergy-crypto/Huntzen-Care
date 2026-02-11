@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, BadRequestException, ForbiddenException 
 import { ConsultationFormat, ConsultationStatus, NotificationType } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { ActivityService } from '../activity/activity.service';
 import { CreateConsultationDto } from './dto/create-consultation.dto';
 
 @Injectable()
@@ -9,6 +10,7 @@ export class ConsultationsService {
   constructor(
     private prisma: PrismaService,
     private notificationsService: NotificationsService,
+    private activityService: ActivityService,
   ) {}
 
   async create(userId: string, dto: CreateConsultationDto) {
@@ -48,29 +50,35 @@ export class ConsultationsService {
         scheduledEndAt: end,
         duration: dto.duration || 50,
         format: (dto.format as ConsultationFormat) || ConsultationFormat.VIDEO,
-        // Newly created consultations are pending (SCHEDULED) until the practitioner confirms.
         status: ConsultationStatus.SCHEDULED,
         roomName,
       },
-      include: {
+      select: {
+        id: true,
+        companyId: true,
+        employeeId: true,
+        practitionerId: true,
+        scheduledAt: true,
+        scheduledEndAt: true,
+        duration: true,
+        format: true,
+        status: true,
+        roomName: true,
+        createdAt: true,
         employee: {
-          include: {
-            user: {
-              select: {
-                id: true,
-                email: true,
-              },
-            },
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            user: { select: { id: true, email: true } },
           },
         },
         practitioner: {
-          include: {
-            user: {
-              select: {
-                id: true,
-                email: true,
-              },
-            },
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            user: { select: { id: true, email: true } },
           },
         },
       },
@@ -109,26 +117,51 @@ export class ConsultationsService {
       console.error('[ConsultationsService.create] Failed to create notification:', error);
     }
 
+    this.activityService.log({
+      actorUserId: userId,
+      action: 'CONSULTATION_CREATE',
+      entityType: 'consultation',
+      entityId: consultation.id,
+      details: `${consultation.practitioner?.firstName ?? ''} ${consultation.practitioner?.lastName ?? ''}`.trim() || dto.practitionerId,
+    }).catch(() => {});
+
     return consultation;
   }
 
+  /** Set CONFIRMED consultations whose end time has passed to COMPLETED. */
+  private async autoCompletePastConfirmed(): Promise<void> {
+    await this.prisma.consultation.updateMany({
+      where: {
+        status: ConsultationStatus.CONFIRMED,
+        scheduledEndAt: { lt: new Date() },
+      },
+      data: { status: ConsultationStatus.COMPLETED },
+    });
+  }
+
   async findAll(userId: string, userRole: string, companyId?: string) {
-    const where: any = {};
+    await this.autoCompletePastConfirmed();
+
+    const where: Record<string, unknown> = {};
 
     if (userRole === 'EMPLOYEE') {
       const employee = await this.prisma.employee.findUnique({
         where: { userId },
+        select: { id: true },
       });
-      if (employee) {
-        where.employeeId = employee.id;
+      if (!employee) {
+        return [];
       }
+      where.employeeId = employee.id;
     } else if (userRole === 'PRACTITIONER') {
       const practitioner = await this.prisma.practitioner.findUnique({
         where: { userId },
+        select: { id: true },
       });
-      if (practitioner) {
-        where.practitionerId = practitioner.id;
+      if (!practitioner) {
+        return [];
       }
+      where.practitionerId = practitioner.id;
     }
 
     if (companyId) {
@@ -149,7 +182,12 @@ export class ConsultationsService {
           },
         },
         practitioner: {
-          include: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            title: true,
+            userId: true,
             user: {
               select: {
                 id: true,
@@ -166,6 +204,8 @@ export class ConsultationsService {
   }
 
   async findOne(id: string, userId: string, userRole: string) {
+    await this.autoCompletePastConfirmed();
+
     const consultation = await this.prisma.consultation.findUnique({
       where: { id },
       include: {
@@ -229,6 +269,14 @@ export class ConsultationsService {
         practitioner: { include: { user: { select: { id: true, email: true } } } },
       },
     });
+
+    this.activityService.log({
+      actorUserId: userId,
+      action: 'CONSULTATION_CANCEL',
+      entityType: 'consultation',
+      entityId: id,
+      details: undefined,
+    }).catch(() => {});
 
     // Send notification to the other party about the cancellation (non-blocking)
     try {
@@ -373,6 +421,41 @@ export class ConsultationsService {
       console.error('[ConsultationsService.confirm] Failed to create confirmation notification:', error);
     }
 
+    this.activityService.log({
+      actorUserId: userId,
+      action: 'CONSULTATION_CONFIRM',
+      entityType: 'consultation',
+      entityId: id,
+      details: undefined,
+    }).catch(() => {});
+
+    return updated;
+  }
+
+  async complete(id: string, userId: string, userRole: string) {
+    const consultation = await this.findOne(id, userId, userRole);
+
+    if (userRole !== 'PRACTITIONER') {
+      throw new ForbiddenException('Seul le praticien peut marquer une consultation comme terminée');
+    }
+
+    if (consultation.status === ConsultationStatus.CANCELLED) {
+      throw new BadRequestException('Impossible de clôturer une consultation annulée');
+    }
+
+    if (consultation.status === ConsultationStatus.COMPLETED) {
+      return consultation;
+    }
+
+    const updated = await this.prisma.consultation.update({
+      where: { id },
+      data: { status: ConsultationStatus.COMPLETED },
+      include: {
+        employee: { include: { user: { select: { id: true, email: true } } } },
+        practitioner: { include: { user: { select: { id: true, email: true } } } },
+      },
+    });
+
     return updated;
   }
 
@@ -474,6 +557,14 @@ export class ConsultationsService {
       console.error('[Reschedule] Error stack:', error instanceof Error ? error.stack : 'No stack trace');
       // The consultation was already updated successfully, so we continue
     }
+
+    this.activityService.log({
+      actorUserId: userId,
+      action: 'CONSULTATION_RESCHEDULE',
+      entityType: 'consultation',
+      entityId: id,
+      details: dto.scheduledAt,
+    }).catch(() => {});
 
     return updatedConsultation;
   }

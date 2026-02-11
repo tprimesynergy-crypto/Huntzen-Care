@@ -1,38 +1,34 @@
+import { useState, useEffect } from 'react';
 import { Card } from '@/app/components/ui/card';
 import { Button } from '@/app/components/ui/button';
 import { AlertCircle, Phone, MessageCircle, Globe, X } from 'lucide-react';
+import { api } from '@/app/services/api';
+
+const DEFAULT_CONTACTS = [
+  { name: 'Urgences Psychiatriques', number: '01 45 65 81 09', available: '24h/24 - 7j/7' },
+  { name: 'SOS Amitié', number: '09 72 39 40 50', available: '24h/24 - 7j/7' },
+  { name: 'Suicide Écoute', number: '01 45 39 40 00', available: '24h/24 - 7j/7' },
+  { name: '3114 - Prévention Suicide', number: '3114', available: 'Gratuit - 24h/24' },
+];
+
+const DEFAULT_RESOURCES = [
+  { name: 'Chat SOS Amitié', description: 'Discutez en direct avec un bénévole formé à l\'écoute', url: 'https://www.sos-amitie.com/web/guest/accueil' },
+];
 
 interface EmergencyModalProps {
   onClose: () => void;
 }
 
 export function EmergencyModal({ onClose }: EmergencyModalProps) {
-  const emergencyContacts = [
-    {
-      name: 'Urgences Psychiatriques',
-      number: '01 45 65 81 09',
-      available: '24h/24 - 7j/7',
-      icon: Phone,
-    },
-    {
-      name: 'SOS Amitié',
-      number: '09 72 39 40 50',
-      available: '24h/24 - 7j/7',
-      icon: Phone,
-    },
-    {
-      name: 'Suicide Écoute',
-      number: '01 45 39 40 00',
-      available: '24h/24 - 7j/7',
-      icon: Phone,
-    },
-    {
-      name: '3114 - Prévention Suicide',
-      number: '3114',
-      available: 'Gratuit - 24h/24',
-      icon: Phone,
-    },
-  ];
+  const [contacts, setContacts] = useState(DEFAULT_CONTACTS);
+  const [resources, setResources] = useState(DEFAULT_RESOURCES);
+
+  useEffect(() => {
+    api.getEmergencyResources().then((data) => {
+      if (data?.contacts?.length) setContacts(data.contacts);
+      if (data?.resources?.length) setResources(data.resources);
+    }).catch(() => {});
+  }, []);
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -72,8 +68,8 @@ export function EmergencyModal({ onClose }: EmergencyModalProps) {
         <div className="space-y-4 mb-6">
           <h3 className="text-lg font-semibold">Numéros d'urgence disponibles</h3>
           
-          {emergencyContacts.map((contact) => {
-            const Icon = contact.icon;
+          {contacts.map((contact) => {
+            const Icon = Phone;
             return (
               <Card key={contact.name} className="p-4 hover:shadow-md transition-shadow">
                 <div className="flex items-start justify-between">
@@ -86,9 +82,9 @@ export function EmergencyModal({ onClose }: EmergencyModalProps) {
                       <p className="text-2xl font-bold text-primary my-1">
                         {contact.number}
                       </p>
-                      <p className="text-sm text-muted-foreground">
-                        {contact.available}
-                      </p>
+                      {contact.available && (
+                        <p className="text-sm text-muted-foreground">{contact.available}</p>
+                      )}
                     </div>
                   </div>
                   <Button
@@ -107,28 +103,25 @@ export function EmergencyModal({ onClose }: EmergencyModalProps) {
         {/* Online Resources */}
         <div className="space-y-4 mb-6">
           <h3 className="text-lg font-semibold">Ressources en ligne</h3>
-          
-          <Card className="p-4">
-            <div className="flex items-start gap-3">
-              <div className="w-10 h-10 bg-secondary/10 rounded-lg flex items-center justify-center flex-shrink-0">
-                <MessageCircle className="w-5 h-5 text-secondary" />
+          {resources.map((resource, idx) => (
+            <Card key={idx} className="p-4">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 bg-secondary/10 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <MessageCircle className="w-5 h-5 text-secondary" />
+                </div>
+                <div className="flex-1">
+                  <h4 className="font-semibold text-foreground mb-1">{resource.name}</h4>
+                  {resource.description && (
+                    <p className="text-sm text-muted-foreground mb-3">{resource.description}</p>
+                  )}
+                  <Button variant="outline" size="sm" onClick={() => window.open(resource.url, '_blank')}>
+                    <Globe className="w-4 h-4 mr-2" />
+                    Accéder
+                  </Button>
+                </div>
               </div>
-              <div className="flex-1">
-                <h4 className="font-semibold text-foreground mb-1">Chat SOS Amitié</h4>
-                <p className="text-sm text-muted-foreground mb-3">
-                  Discutez en direct avec un bénévole formé à l'écoute
-                </p>
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  onClick={() => window.open('https://www.sos-amitie.com/web/guest/accueil', '_blank')}
-                >
-                  <Globe className="w-4 h-4 mr-2" />
-                  Accéder au chat
-                </Button>
-              </div>
-            </div>
-          </Card>
+            </Card>
+          ))}
         </div>
 
         {/* Reassurance Message */}

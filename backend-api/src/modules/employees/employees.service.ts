@@ -1,9 +1,13 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { ActivityService } from '../activity/activity.service';
 
 @Injectable()
 export class EmployeesService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private activityService: ActivityService,
+  ) {}
 
   async findMe(userId: string) {
     const employee = await this.prisma.employee.findUnique({
@@ -57,6 +61,13 @@ export class EmployeesService {
         company: { select: { id: true, name: true, slug: true } },
       },
     });
+    this.activityService.log({
+      actorUserId: userId,
+      action: 'EMPLOYEE_PROFILE_UPDATE',
+      entityType: 'employee',
+      entityId: employee.id,
+      details: undefined,
+    }).catch(() => {});
     return updated;
   }
 

@@ -16,13 +16,22 @@ import { PractitionerProfile } from '@/app/components/employee/PractitionerProfi
 import { CompanyProfile } from '@/app/components/company/CompanyProfile';
 import { PractitionerDashboard } from '@/app/components/practitioner/PractitionerDashboard';
 import { HRDashboard } from '@/app/components/hr/HRDashboard';
+import { HRInvitations } from '@/app/components/hr/HRInvitations';
+import { HRConsultations } from '@/app/components/hr/HRConsultations';
 import { LandingPage } from '@/app/components/marketing/LandingPage';
 import { PrivacyPolicy } from '@/app/components/legal/PrivacyPolicy';
 import { PractitionerBilling } from '@/app/components/admin/PractitionerBilling';
+import { AdminAdmins } from '@/app/components/admin/AdminAdmins';
+import { AdminEmergencyResources } from '@/app/components/admin/AdminEmergencyResources';
+import { AdminCompanies } from '@/app/components/admin/AdminCompanies';
+import { AdminActivityLog } from '@/app/components/admin/AdminActivityLog';
+import { AdminHuntzenDashboard } from '@/app/components/admin/AdminHuntzenDashboard';
+import { AdminPractitioners } from '@/app/components/admin/AdminPractitioners';
 import { AdminProfile } from '@/app/components/admin/AdminProfile';
 import { EmployeeUsage } from '@/app/components/admin/EmployeeUsage';
 import { ArticlePage } from '@/app/components/employee/ArticlePage';
 import { api } from '@/app/services/api';
+import { RegisterWithInvitation } from '@/app/components/auth/RegisterWithInvitation';
 
 export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -31,11 +40,16 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [showEmergencyModal, setShowEmergencyModal] = useState(false);
   const [selectedPractitionerId, setSelectedPractitionerId] = useState<string | null>(null);
+  const [practitionerProfileReturnTab, setPractitionerProfileReturnTab] = useState<string>('practitioners');
   const [selectedArticleId, setSelectedArticleId] = useState<string | null>(null);
   const [profileRefreshKey, setProfileRefreshKey] = useState(0);
   const [messagesPreselectConsultationId, setMessagesPreselectConsultationId] = useState<string | null>(null);
   const [messagesPreselectPractitionerId, setMessagesPreselectPractitionerId] = useState<string | null>(null);
-  const [globalSearch, setGlobalSearch] = useState('');
+  const [invitationTokenFromUrl, setInvitationTokenFromUrl] = useState<string | null>(() => {
+    if (typeof window === 'undefined') return null;
+    const params = new URLSearchParams(window.location.search);
+    return params.get('invitation');
+  });
 
   useLayoutEffect(() => {
     api.setOnUnauthorized(() => setIsLoggedIn(false));
@@ -58,7 +72,9 @@ export default function App() {
         // Set initial dashboard based on role
         if (role === 'PRACTITIONER') {
           setActiveTab('practitioner-dashboard');
-        } else if (role === 'SUPER_ADMIN' || role === 'ADMIN_HUNTZEN' || role === 'ADMIN_RH') {
+        } else if (role === 'ADMIN_HUNTZEN' || role === 'SUPER_ADMIN') {
+          setActiveTab('admin-huntzen-dashboard');
+        } else if (role === 'ADMIN_RH') {
           setActiveTab('hr-dashboard');
         } else {
           setActiveTab('dashboard'); // Default to employee dashboard
@@ -72,7 +88,8 @@ export default function App() {
       });
   }, []);
 
-  const handleViewPractitionerProfile = (practitionerId: string) => {
+  const handleViewPractitionerProfile = (practitionerId: string, returnTab?: string) => {
+    setPractitionerProfileReturnTab(returnTab ?? 'practitioners');
     setSelectedPractitionerId(practitionerId);
     setActiveTab('practitioner-profile');
   };
@@ -109,8 +126,6 @@ export default function App() {
           <FindPractitioner
             onViewProfile={handleViewPractitionerProfile}
             userRole={userRole}
-            searchQuery={globalSearch}
-            onSearchQueryChange={setGlobalSearch}
           />
         );
       case 'appointments':
@@ -126,16 +141,23 @@ export default function App() {
       case 'messages':
         return (
           <Messages
+            userRole={userRole}
             preselectConsultationId={messagesPreselectConsultationId}
             onPreselectUsed={() => setMessagesPreselectConsultationId(null)}
             preselectPractitionerId={messagesPreselectPractitionerId}
             onPreselectPractitionerUsed={() => setMessagesPreselectPractitionerId(null)}
+            onNoConversationWithPractitioner={(practitionerId) => {
+              setMessagesPreselectPractitionerId(null);
+              setSelectedPractitionerId(practitionerId);
+              setPractitionerProfileReturnTab('messages');
+              setActiveTab('practitioner-profile');
+            }}
           />
         );
       case 'news':
-        return <News onViewArticle={handleViewArticle} searchQuery={globalSearch} />;
+        return <News onViewArticle={handleViewArticle} />;
       case 'settings':
-        return <Settings />;
+        return <Settings userRole={userRole} onAccountDeleted={() => setIsLoggedIn(false)} />;
       case 'profile':
         if (userRole === 'PRACTITIONER') {
           return <MyPractitionerProfile />;
@@ -148,21 +170,44 @@ export default function App() {
         return (
           <PractitionerProfile
             practitionerId={selectedPractitionerId ?? ''}
-            onClose={() => setActiveTab('practitioners')}
+            onClose={() => setActiveTab(practitionerProfileReturnTab)}
             onStartMessages={(practitionerId) => {
+              setMessagesPreselectConsultationId(null);
               setMessagesPreselectPractitionerId(practitionerId);
               setActiveTab('messages');
             }}
+            showBooking={userRole === 'EMPLOYEE'}
           />
         );
       case 'company-profile':
         return <CompanyProfile />;
       case 'practitioner-dashboard':
         return <PractitionerDashboard />;
+      case 'admin-huntzen-dashboard':
+        return <AdminHuntzenDashboard onNavigate={setActiveTab} />;
+      case 'admin-practitioners':
+        return (
+          <AdminPractitioners
+            onViewProfile={(practitionerId) => handleViewPractitionerProfile(practitionerId, 'admin-practitioners')}
+          />
+        );
       case 'hr-dashboard':
         return <HRDashboard />;
+      case 'hr-invitations':
+        return <HRInvitations />;
+      case 'hr-consultations':
+        return <HRConsultations />;
       case 'practitioner-billing':
         return <PractitionerBilling />;
+      case 'admin-management':
+      case 'admin-management-admins':
+        return <AdminAdmins />;
+      case 'admin-management-companies':
+        return <AdminCompanies />;
+      case 'admin-activity-log':
+        return <AdminActivityLog />;
+      case 'admin-emergency-resources':
+        return <AdminEmergencyResources />;
       case 'employee-usage':
         return <EmployeeUsage />;
       case 'landing':
@@ -190,31 +235,38 @@ export default function App() {
   }
 
   if (!isLoggedIn) {
-    return (
-      <Login
-        onLoginSuccess={async () => {
-          // Fetch user role after login
-          try {
-            const user = await api.getMe();
-            const role = user?.role || null;
-            setUserRole(role);
-            setIsLoggedIn(true);
-            
-            // Set initial dashboard based on role
-            if (role === 'PRACTITIONER') {
-              setActiveTab('practitioner-dashboard');
-            } else if (role === 'SUPER_ADMIN' || role === 'ADMIN_HUNTZEN' || role === 'ADMIN_RH') {
-              setActiveTab('hr-dashboard');
-            } else {
-              setActiveTab('dashboard');
+    const onLoginSuccess = async () => {
+      try {
+        const user = await api.getMe();
+        const role = user?.role || null;
+        setUserRole(role);
+        setIsLoggedIn(true);
+        if (role === 'PRACTITIONER') setActiveTab('practitioner-dashboard');
+        else if (role === 'ADMIN_HUNTZEN' || role === 'SUPER_ADMIN') setActiveTab('admin-huntzen-dashboard');
+        else if (role === 'ADMIN_RH') setActiveTab('hr-dashboard');
+        else setActiveTab('dashboard');
+      } catch {
+        setIsLoggedIn(true);
+        setActiveTab('dashboard');
+      }
+    };
+    if (invitationTokenFromUrl) {
+      return (
+        <RegisterWithInvitation
+          invitationToken={invitationTokenFromUrl}
+          onSuccess={onLoginSuccess}
+          onBack={() => {
+            setInvitationTokenFromUrl(null);
+            if (typeof window !== 'undefined') {
+              const url = new URL(window.location.href);
+              url.searchParams.delete('invitation');
+              window.history.replaceState({}, '', url.pathname + url.search || '/');
             }
-          } catch {
-            setIsLoggedIn(true);
-            setActiveTab('dashboard');
-          }
-        }}
-      />
-    );
+          }}
+        />
+      );
+    }
+    return <Login onLoginSuccess={onLoginSuccess} />;
   }
 
   return (
@@ -249,9 +301,6 @@ export default function App() {
             setIsLoggedIn(false);
           }}
           profileRefreshKey={profileRefreshKey}
-          globalSearch={globalSearch}
-          onGlobalSearchChange={setGlobalSearch}
-          onGlobalSearchSubmit={() => setActiveTab('practitioners')}
         />
 
         {/* Content Area */}

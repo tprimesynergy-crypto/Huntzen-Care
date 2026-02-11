@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Card } from '@/app/components/ui/card';
-import { Calendar, MessageSquare, BookOpen, TrendingUp, Heart, Clock } from 'lucide-react';
+import { Calendar, MessageSquare, BookOpen, TrendingUp, Heart, Clock, Star } from 'lucide-react';
 import { Button } from '@/app/components/ui/button';
 import { api } from '@/app/services/api';
 
@@ -27,12 +27,13 @@ export function EmployeeDashboard({ onNavigate, onViewArticle }: EmployeeDashboa
   const loadAll = useCallback(async () => {
     try {
       setLoading(true);
-      const [consultationsRes, newsRes, employeeRes, journalStatsRes, unreadCount] = await Promise.all([
+      const [consultationsRes, newsRes, employeeRes, journalStatsRes, unreadCount, ratingsStats] = await Promise.all([
         api.getConsultations().catch(() => []),
         api.getNews().catch(() => []),
         api.getEmployeeMe().catch(() => null),
         api.getJournalStats().catch(() => ({ total: 0, avgMood: null, streak: 0 })),
         api.getUnreadNotificationsCount().catch(() => 0),
+        api.getRatingsStats().catch(() => ({ avgReceived: null, countReceived: 0, avgGiven: null, countGiven: 0 })),
       ]);
 
       const consultations = Array.isArray(consultationsRes) ? consultationsRes : [];
@@ -101,6 +102,16 @@ export function EmployeeDashboard({ onNavigate, onViewArticle }: EmployeeDashboa
           value: jStats.avgMood != null ? `${(jStats.avgMood * 20).toFixed(0)}%` : '—',
           subValue: jStats.streak ? `${jStats.streak} jour${jStats.streak > 1 ? 's' : ''} consécutifs` : 'Humeur ce mois-ci',
         },
+        (() => {
+          const rStats = ratingsStats && typeof ratingsStats === 'object' ? ratingsStats : { avgReceived: null, countReceived: 0 };
+          return {
+            icon: Star,
+            label: 'Notes reçues',
+            value: rStats.avgReceived != null ? `${rStats.avgReceived.toFixed(1)}/5` : '—',
+            subValue: rStats.countReceived > 0 ? `${rStats.countReceived} évaluation${rStats.countReceived > 1 ? 's' : ''}` : 'Aucune note',
+            color: 'bg-amber-500',
+          };
+        })(),
       ]);
     } catch (e) {
       console.error('Error loading dashboard:', e);

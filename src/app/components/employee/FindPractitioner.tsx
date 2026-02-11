@@ -243,6 +243,7 @@ export function FindPractitioner({
                         <h3 className="text-lg font-semibold text-foreground hover:text-primary transition-colors">{name}</h3>
                         <p className="text-sm text-primary font-medium">{specialtyLabel}</p>
                       </div>
+                      {userRole === 'EMPLOYEE' && (
                         <Button
                           variant="ghost"
                           size="icon"
@@ -255,6 +256,7 @@ export function FindPractitioner({
                             }`}
                           />
                         </Button>
+                      )}
                     </div>
                     <div className="flex items-center gap-2 mb-3">
                       {p.experience != null && (
@@ -282,19 +284,21 @@ export function FindPractitioner({
                         <Button variant="outline" size="sm" onClick={() => onViewProfile?.(p.id)}>
                           Voir le profil
                         </Button>
-                        <Button
-                          size="sm"
-                          className="bg-primary hover:bg-primary/90"
-                          onClick={() => {
-                            setBookingPractitioner(p);
-                            setBookingDate('');
-                            setBookingTime('');
-                            setBookingError(null);
-                            setBookingSuccess(null);
-                          }}
-                        >
-                          Prendre RDV
-                        </Button>
+                        {userRole === 'EMPLOYEE' && (
+                          <Button
+                            size="sm"
+                            className="bg-primary hover:bg-primary/90"
+                            onClick={() => {
+                              setBookingPractitioner(p);
+                              setBookingDate('');
+                              setBookingTime('');
+                              setBookingError(null);
+                              setBookingSuccess(null);
+                            }}
+                          >
+                            Prendre RDV
+                          </Button>
+                        )}
                       </div>
                     </div>
                   </div>

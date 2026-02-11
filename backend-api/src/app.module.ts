@@ -11,6 +11,10 @@ import { MessagesModule } from './modules/messages/messages.module';
 import { CompanyModule } from './modules/company/company.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { HRModule } from './modules/hr/hr.module';
+import { AdminModule } from './modules/admin/admin.module';
+import { RatingsModule } from './modules/ratings/ratings.module';
+import { EmergencyModule } from './modules/emergency/emergency.module';
+import { ActivityModule } from './modules/activity/activity.module';
 
 @Module({
   imports: [
@@ -28,6 +32,10 @@ import { HRModule } from './modules/hr/hr.module';
     CompanyModule,
     NotificationsModule,
     HRModule,
+    AdminModule,
+    RatingsModule,
+    EmergencyModule,
+    ActivityModule,
   ],
 })
 export class AppModule {}

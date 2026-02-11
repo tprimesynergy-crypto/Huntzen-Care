@@ -1,13 +1,14 @@
 import { useState, useEffect } from 'react';
 import { Card } from '@/app/components/ui/card';
 import { Button } from '@/app/components/ui/button';
-import { Calendar, Users, Clock, MessageSquare, Video } from 'lucide-react';
+import { Calendar, Users, Clock, MessageSquare, Video, CheckCircle, Star } from 'lucide-react';
 import { api } from '@/app/services/api';
 
 export function PractitionerDashboard() {
   const [me, setMe] = useState<any>(null);
   const [consultations, setConsultations] = useState<any[]>([]);
   const [conversations, setConversations] = useState<any[]>([]);
+  const [ratingsStats, setRatingsStats] = useState<{ avgReceived: number | null; countReceived: number } | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -15,10 +16,12 @@ export function PractitionerDashboard() {
       api.getPractitionerMe().catch(() => null),
       api.getConsultations().catch(() => []),
       api.getConversations().catch(() => []),
-    ]).then(([p, cons, conv]) => {
+      api.getRatingsStats().catch(() => ({ avgReceived: null, countReceived: 0 })),
+    ]).then(([p, cons, conv, rStats]) => {
       setMe(p ?? null);
       setConsultations(Array.isArray(cons) ? cons : []);
       setConversations(Array.isArray(conv) ? conv : []);
+      setRatingsStats(rStats && typeof rStats === 'object' ? rStats : null);
     }).finally(() => setLoading(false));
   }, []);
 
@@ -132,6 +135,22 @@ export function PractitionerDashboard() {
             </div>
           </div>
         </Card>
+        <Card className="p-5">
+          <div className="flex items-start gap-4">
+            <div className="w-12 h-12 rounded-lg bg-amber-500 flex items-center justify-center text-white">
+              <Star className="w-6 h-6" />
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Note moyenne</p>
+              <p className="text-2xl font-bold">
+                {ratingsStats?.avgReceived != null ? `${ratingsStats.avgReceived.toFixed(1)}/5` : '—'}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {ratingsStats?.countReceived ?? 0} évaluation{(ratingsStats?.countReceived ?? 0) > 1 ? 's' : ''}
+              </p>
+            </div>
+          </div>
+        </Card>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -170,19 +189,27 @@ export function PractitionerDashboard() {
                             En attente de votre confirmation
                           </div>
                         )}
+                        {c.status === 'COMPLETED' && (
+                          <div className="mt-2 inline-flex items-center px-2 py-1 rounded-full bg-emerald-500/10 text-emerald-600 text-xs font-medium">
+                            <CheckCircle className="w-3.5 h-3.5 mr-1" />
+                            Terminée
+                          </div>
+                        )}
                       </div>
                       <div className="flex flex-col gap-2 items-end">
-                        <Button 
-                          size="sm" 
-                          className="bg-primary hover:bg-primary/90"
-                          disabled={!c.canJoin}
-                          onClick={() => {
-                            window.open(`https://meet.jit.si/${roomName}`, '_blank', 'width=1200,height=800');
-                          }}
-                        >
-                          <Video className="w-4 h-4 mr-2" />
-                          {c.canJoin ? 'Rejoindre' : 'Démarrer'}
-                        </Button>
+                        {c.status !== 'COMPLETED' && (
+                          <Button 
+                            size="sm" 
+                            className="bg-primary hover:bg-primary/90"
+                            disabled={!c.canJoin}
+                            onClick={() => {
+                              window.open(`https://meet.jit.si/${roomName}`, '_blank', 'width=1200,height=800');
+                            }}
+                          >
+                            <Video className="w-4 h-4 mr-2" />
+                            {c.canJoin ? 'Rejoindre' : 'Démarrer'}
+                          </Button>
+                        )}
                         {isPending && (
                           <Button
                             size="sm"
@@ -190,7 +217,6 @@ export function PractitionerDashboard() {
                             onClick={async () => {
                               try {
                                 await api.confirmConsultation(c.id);
-                                // Simple reload by refetching consultations
                                 const cons = await api.getConsultations().catch(() => []);
                                 setConsultations(Array.isArray(cons) ? cons : []);
                               } catch (err) {
@@ -206,8 +232,32 @@ export function PractitionerDashboard() {
                             Confirmer le rendez-vous
                           </Button>
                         )}
+                        {c.status === 'CONFIRMED' && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="text-emerald-600 border-emerald-600 hover:bg-emerald-50"
+                            onClick={async () => {
+                              try {
+                                await api.completeConsultation(c.id);
+                                const cons = await api.getConsultations().catch(() => []);
+                                setConsultations(Array.isArray(cons) ? cons : []);
+                              } catch (err) {
+                                console.error(err);
+                                window.alert(
+                                  err instanceof Error
+                                    ? err.message
+                                    : 'Erreur lors de la clôture du rendez-vous.',
+                                );
+                              }
+                            }}
+                          >
+                            <CheckCircle className="w-4 h-4 mr-2" />
+                            Marquer comme terminée
+                          </Button>
+                        )}
                       </div>
-                      {!c.canJoin && (
+                      {c.status !== 'COMPLETED' && !c.canJoin && (
                         <div className="mt-2 text-xs text-muted-foreground">
                           Disponible 10 min avant
                         </div>

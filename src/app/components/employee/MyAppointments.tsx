@@ -12,6 +12,7 @@ import {
   DialogDescription,
 } from '@/app/components/ui/dialog';
 import { Calendar, Clock, Video, MessageSquare, Star } from 'lucide-react';
+import { Textarea } from '@/app/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/app/components/ui/tabs';
 import { api } from '@/app/services/api';
 
@@ -21,10 +22,11 @@ interface MyAppointmentsProps {
   userRole?: string | null;
 }
 
-function normalize(list: any[], now: Date, userRole?: string | null) {
+function normalize(list: any[], now: Date, userRole?: string | null, ratedConsultationIds?: Set<string>) {
   const arr = Array.isArray(list) ? list : [];
   const isDev = import.meta.env.DEV; // true in development, false in production
   const isPractitioner = userRole === 'PRACTITIONER';
+  const ratedSet = ratedConsultationIds ?? new Set<string>();
   
   const up = arr
     .filter((c: any) => new Date(c.scheduledAt) >= now && c.status !== 'CANCELLED')
@@ -98,7 +100,7 @@ function normalize(list: any[], now: Date, userRole?: string | null) {
         type: c.format === 'VIDEO' ? 'Visioconférence' : c.format === 'AUDIO' ? 'Appel audio' : 'En personne',
         status: 'completed',
         avatar,
-        rated: false,
+        rated: ratedSet.has(c.id),
       };
     });
   return { up, pa };
@@ -145,11 +147,24 @@ export function MyAppointments({ onNavigate, onNavigateToMessages, userRole }: M
   } | null>(null);
   const [cancelSaving, setCancelSaving] = useState(false);
   const [cancelError, setCancelError] = useState<string | null>(null);
+  const [ratingData, setRatingData] = useState<{ id: string; practitioner: string } | null>(null);
+  const [ratingValue, setRatingValue] = useState(5);
+  const [ratingComment, setRatingComment] = useState('');
+  const [ratingSaving, setRatingSaving] = useState(false);
+  const [ratingError, setRatingError] = useState<string | null>(null);
 
   const load = useCallback(() => {
     setLoading(true);
-    api.getConsultations().then((list) => {
-      const { up, pa } = normalize(list, new Date(), userRole);
+    Promise.all([
+      api.getConsultations(),
+      api.getMyRatings().catch(() => []),
+    ]).then(([list, myRatings]) => {
+      const ratedIds = new Set<string>();
+      (Array.isArray(myRatings) ? myRatings : []).forEach((r: any) => {
+        if (r.consultationId) ratedIds.add(r.consultationId);
+        else if (r.consultation?.id) ratedIds.add(r.consultation.id);
+      });
+      const { up, pa } = normalize(list, new Date(), userRole, ratedIds);
       setUpcoming(up);
       setPast(pa);
     }).catch(() => {
@@ -250,7 +265,11 @@ export function MyAppointments({ onNavigate, onNavigateToMessages, userRole }: M
                       <Button
                         variant="outline"
                         onClick={() =>
-                          (onNavigateToMessages ? onNavigateToMessages(a.id, a.practitionerId) : onNavigate?.('messages'))
+                          onNavigateToMessages
+                            ? userRole === 'PRACTITIONER'
+                              ? onNavigateToMessages(a.id)
+                              : onNavigateToMessages(a.id, a.practitionerId)
+                            : onNavigate?.('messages')
                         }
                       >
                         <MessageSquare className="w-4 h-4 mr-2" /> Envoyer un message
@@ -365,18 +384,29 @@ export function MyAppointments({ onNavigate, onNavigateToMessages, userRole }: M
                       {!a.rated && (
                         <Button
                           className="bg-[#F39C12] hover:bg-[#F39C12]/90"
-                          onClick={() => window.alert('L\'évaluation des séances sera bientôt disponible.')}
+                          onClick={() => {
+                            setRatingData({ id: a.id, practitioner: a.practitioner });
+                            setRatingValue(5);
+                            setRatingComment('');
+                            setRatingError(null);
+                          }}
                         >
                           <Star className="w-4 h-4 mr-2" /> Évaluer cette séance
                         </Button>
                       )}
-                      <Button className="bg-primary hover:bg-primary/90" onClick={() => onNavigate?.('practitioners')}>
-                        <Calendar className="w-4 h-4 mr-2" /> Reprendre RDV
-                      </Button>
+                      {userRole !== 'PRACTITIONER' && (
+                        <Button className="bg-primary hover:bg-primary/90" onClick={() => onNavigate?.('practitioners')}>
+                          <Calendar className="w-4 h-4 mr-2" /> Reprendre RDV
+                        </Button>
+                      )}
                       <Button
                         variant="outline"
                         onClick={() =>
-                          (onNavigateToMessages ? onNavigateToMessages(a.id, a.practitionerId) : onNavigate?.('messages'))
+                          onNavigateToMessages
+                            ? userRole === 'PRACTITIONER'
+                              ? onNavigateToMessages(a.id)
+                              : onNavigateToMessages(a.id, a.practitionerId)
+                            : onNavigate?.('messages')
                         }
                       >
                         <MessageSquare className="w-4 h-4 mr-2" /> Envoyer un message
@@ -487,6 +517,89 @@ export function MyAppointments({ onNavigate, onNavigateToMessages, userRole }: M
                 </Button>
                 <Button type="submit" disabled={rescheduleSaving}>
                   {rescheduleSaving ? 'Enregistrement…' : 'Enregistrer'}
+                </Button>
+              </DialogFooter>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={!!ratingData}
+        onOpenChange={(open) => {
+          if (!open && !ratingSaving) {
+            setRatingData(null);
+            setRatingError(null);
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Évaluer cette séance</DialogTitle>
+            <DialogDescription>
+              {ratingData && <>Comment s&apos;est passée votre séance avec {ratingData.practitioner} ?</>}
+            </DialogDescription>
+          </DialogHeader>
+          {ratingData && (
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                setRatingError(null);
+                setRatingSaving(true);
+                try {
+                  await api.createRating(ratingData.id, ratingValue, ratingComment.trim() || undefined);
+                  setRatingData(null);
+                  await load();
+                } catch (err) {
+                  setRatingError(err instanceof Error ? err.message : 'Erreur lors de l\'envoi.');
+                } finally {
+                  setRatingSaving(false);
+                }
+              }}
+              className="space-y-4"
+            >
+              <div className="space-y-2">
+                <Label>Note (1 à 5 étoiles)</Label>
+                <div className="flex gap-2">
+                  {[1, 2, 3, 4, 5].map((n) => (
+                    <button
+                      key={n}
+                      type="button"
+                      onClick={() => setRatingValue(n)}
+                      className={`p-2 rounded-lg border-2 transition-colors ${
+                        n <= ratingValue
+                          ? 'border-[#F39C12] bg-[#F39C12]/10 text-[#F39C12]'
+                          : 'border-muted hover:border-muted-foreground/50'
+                      }`}
+                    >
+                      <Star className={`w-6 h-6 ${n <= ratingValue ? 'fill-current' : ''}`} />
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="rating-comment">Commentaire (optionnel)</Label>
+                <Textarea
+                  id="rating-comment"
+                  value={ratingComment}
+                  onChange={(e) => setRatingComment(e.target.value)}
+                  placeholder="Partagez votre ressenti..."
+                  className="min-h-[80px]"
+                  disabled={ratingSaving}
+                />
+              </div>
+              {ratingError && <p className="text-sm text-destructive">{ratingError}</p>}
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => !ratingSaving && setRatingData(null)}
+                  disabled={ratingSaving}
+                >
+                  Annuler
+                </Button>
+                <Button type="submit" disabled={ratingSaving} className="bg-[#F39C12] hover:bg-[#F39C12]/90">
+                  {ratingSaving ? 'Envoi…' : 'Envoyer l\'évaluation'}
                 </Button>
               </DialogFooter>
             </form>

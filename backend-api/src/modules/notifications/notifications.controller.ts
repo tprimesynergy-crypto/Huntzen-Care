@@ -1,4 +1,4 @@
-import { Controller, Get, Patch, Param, UseGuards, Request } from '@nestjs/common';
+import { Controller, Get, Patch, Param, Body, UseGuards, Request } from '@nestjs/common';
 import { NotificationsService } from './notifications.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
@@ -6,6 +6,19 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 @UseGuards(JwtAuthGuard)
 export class NotificationsController {
   constructor(private notificationsService: NotificationsService) {}
+
+  @Get('preferences')
+  async getPreferences(@Request() req: { user: { id: string } }) {
+    return this.notificationsService.getPreferences(req.user.id);
+  }
+
+  @Patch('preferences')
+  async updatePreferences(
+    @Request() req: { user: { id: string } },
+    @Body() body: { notificationsEnabled?: boolean; sessionReminderEnabled?: boolean; newArticlesEnabled?: boolean },
+  ) {
+    return this.notificationsService.updatePreferences(req.user.id, body);
+  }
 
   @Get()
   async findAll(@Request() req: { user: { id: string } }) {

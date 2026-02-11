@@ -22,6 +22,7 @@ const SPECIALTY_LABELS: Record<string, string> = {
   COACH_MENTAL: 'Coach mental',
   SEXOLOGUE: 'Sexologue',
   PSYCHANALYSTE: 'Psychanalyste',
+  OTHER: 'Autre',
 };
 
 const DAYS = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
@@ -30,9 +31,11 @@ interface PractitionerProfileProps {
   practitionerId: string;
   onClose?: () => void;
   onStartMessages?: (practitionerId: string) => void;
+  /** When false, hide "Prendre rendez-vous" and booking dialog (e.g. for admin viewers). Default true. */
+  showBooking?: boolean;
 }
 
-export function PractitionerProfile({ practitionerId, onClose, onStartMessages }: PractitionerProfileProps) {
+export function PractitionerProfile({ practitionerId, onClose, onStartMessages, showBooking = true }: PractitionerProfileProps) {
   const [practitioner, setPractitioner] = useState<any>(null);
   const [availability, setAvailability] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -95,7 +98,10 @@ export function PractitionerProfile({ practitionerId, onClose, onStartMessages }
   }
 
   const name = `${practitioner.title || ''} ${practitioner.firstName} ${practitioner.lastName}`.trim();
-  const specialty = SPECIALTY_LABELS[practitioner.specialty] ?? practitioner.specialty ?? '';
+  const specialty =
+    practitioner.specialty === 'OTHER' && practitioner.customSpecialty
+      ? practitioner.customSpecialty
+      : SPECIALTY_LABELS[practitioner.specialty] ?? practitioner.specialty ?? '';
   const avatar = `${practitioner.firstName?.[0] ?? ''}${practitioner.lastName?.[0] ?? ''}`.toUpperCase();
   const types: string[] = [];
   if (practitioner.offersVideo) types.push('Visioconférence');
@@ -142,30 +148,36 @@ export function PractitionerProfile({ practitionerId, onClose, onStartMessages }
                 )}
               </div>
             </div>
+            {(showBooking || onStartMessages) && (
             <div className="flex flex-col gap-2 w-full md:w-auto">
-              <Button
-                className="bg-primary hover:bg-primary/90"
-                onClick={() => {
-                  setBookingOpen(true);
-                  setBookingDate('');
-                  setBookingTime('');
-                  setBookingError(null);
-                  setBookingSuccess(null);
-                }}
-              >
-                <Calendar className="w-4 h-4 mr-2" />
-                Prendre rendez-vous
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  onStartMessages?.(practitionerId);
-                }}
-              >
-                <MessageSquare className="w-4 h-4 mr-2" />
-                Envoyer un message
-              </Button>
+              {showBooking && (
+                <Button
+                  className="bg-primary hover:bg-primary/90"
+                  onClick={() => {
+                    setBookingOpen(true);
+                    setBookingDate('');
+                    setBookingTime('');
+                    setBookingError(null);
+                    setBookingSuccess(null);
+                  }}
+                >
+                  <Calendar className="w-4 h-4 mr-2" />
+                  Prendre rendez-vous
+                </Button>
+              )}
+              {showBooking && onStartMessages && (
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    onStartMessages?.(practitionerId);
+                  }}
+                >
+                  <MessageSquare className="w-4 h-4 mr-2" />
+                  Envoyer un message
+                </Button>
+              )}
             </div>
+            )}
           </div>
           {practitioner.bio && (
             <p className="text-muted-foreground mt-6">{practitioner.bio}</p>
@@ -225,6 +237,7 @@ export function PractitionerProfile({ practitionerId, onClose, onStartMessages }
         </Card>
       )}
 
+      {showBooking && (
       <Dialog
         open={bookingOpen}
         onOpenChange={(open) => {
@@ -368,6 +381,7 @@ export function PractitionerProfile({ practitionerId, onClose, onStartMessages }
           )}
         </DialogContent>
       </Dialog>
+      )}
     </div>
   );
 }
