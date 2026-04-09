@@ -136,18 +136,18 @@ model Employee {
   
   // Profil
   bio             String?   @db.Text
-  avatarUrl       String?
-  coverUrl        String?
-  
+  avatarUrl       String?   @map("avatar_url")
+  coverUrl        String?   @map("cover_url")
+
   // Timestamps
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
-  
+
   // Relations
   consultations   Consultation[]
   journalEntries  JournalEntry[]
   favoritePractitioners FavoritePractitioner[]
-  
+
   @@index([companyId])
   @@index([userId])
   @@map("employees")
@@ -167,6 +167,10 @@ model AdminProfile {
   lastName     String? @map("last_name")
   phoneNumber  String? @map("phone_number")
   position     String?   // ex. DRH, Admin HuntZen
+
+  // Profil
+  avatarUrl    String? @map("avatar_url")
+  coverUrl     String? @map("cover_url")
 
   // Métadonnées
   createdAt    DateTime @default(now()) @map("created_at")
@@ -203,9 +207,9 @@ model Practitioner {
   education       String?   @db.Text
   
   // Médias
-  avatarUrl       String?
-  coverUrl        String?
-  
+  avatarUrl       String?   @map("avatar_url")
+  coverUrl        String?   @map("cover_url")
+
   // Formats proposés
   offersVideo     Boolean   @default(true)
   offersPhone     Boolean   @default(true)
@@ -485,8 +489,8 @@ enum Mood {
 
 model News {
   id              String    @id @default(uuid())
-  companyId       String
-  company         Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  companyId       String?
+  company         Company?  @relation(fields: [companyId], references: [id], onDelete: SetNull)
   
   title           String
   content         String    @db.Text

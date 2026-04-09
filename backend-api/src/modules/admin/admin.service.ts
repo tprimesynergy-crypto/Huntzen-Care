@@ -218,6 +218,7 @@ export class AdminService {
       companyName: u.company?.name ?? null,
       firstName: u.adminProfile?.firstName ?? null,
       lastName: u.adminProfile?.lastName ?? null,
+      avatarUrl: u.adminProfile?.avatarUrl ?? null,
     }));
   }
 
@@ -453,7 +454,10 @@ export class AdminService {
     if (data.country !== undefined) updateData.country = data.country;
     if (data.logoUrl !== undefined) updateData.logoUrl = data.logoUrl;
     if (data.coverUrl !== undefined) updateData.coverUrl = data.coverUrl;
-    if (data.isActive !== undefined) updateData.isActive = data.isActive;
+    // Only ADMIN_HUNTZEN and SUPER_ADMIN can change isActive
+    if (data.isActive !== undefined && (ctx.role === Role.ADMIN_HUNTZEN || ctx.role === Role.SUPER_ADMIN)) {
+      updateData.isActive = data.isActive;
+    }
 
     await this.prisma.company.update({
       where: { id: companyId },
@@ -557,6 +561,7 @@ export class AdminService {
       phoneNumber: e.phoneNumber,
       email: e.user?.email ?? null,
       isActive: e.user?.isActive ?? false,
+      avatarUrl: e.avatarUrl ?? null,
     }));
   }
 

@@ -10,6 +10,7 @@ interface TopBarProps {
   onViewProfile?: () => void;
   onLogout?: () => void;
   profileRefreshKey?: number;
+  userRole?: string | null;
 }
 
 export function TopBar({
@@ -17,8 +18,9 @@ export function TopBar({
   onViewProfile,
   onLogout,
   profileRefreshKey,
+  userRole,
 }: TopBarProps) {
-  const [userDisplay, setUserDisplay] = useState<{ name: string; role: string; initials: string } | null>(null);
+  const [userDisplay, setUserDisplay] = useState<{ name: string; role: string; initials: string; avatarUrl?: string | null } | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [notifications, setNotifications] = useState<any[]>([]);
@@ -29,6 +31,40 @@ export function TopBar({
   }, []);
 
   useEffect(() => {
+    const isAdmin = userRole === 'SUPER_ADMIN' || userRole === 'ADMIN_HUNTZEN' || userRole === 'ADMIN_RH';
+    const isPractitioner = userRole === 'PRACTITIONER';
+
+    if (isPractitioner) {
+      api.getPractitionerMe().then((p: any) => {
+        const name = p?.firstName && p?.lastName ? `${p.title || ''} ${p.firstName} ${p.lastName}`.trim() : p?.user?.email ?? 'Utilisateur';
+        const initials = p?.firstName && p?.lastName
+          ? `${p.firstName[0]}${p.lastName[0]}`.toUpperCase()
+          : (p?.user?.email?.[0] ?? 'U').toUpperCase();
+        setUserDisplay({ name, role: 'Praticien', initials, avatarUrl: p?.avatarUrl ?? null });
+      }).catch(() => {
+        api.getMe().then((u: any) => {
+          setUserDisplay({
+            name: u?.email ?? 'Utilisateur',
+            role: u?.role ?? 'Utilisateur',
+            initials: (u?.email?.[0] ?? 'U').toUpperCase(),
+            avatarUrl: null,
+          });
+        }).catch(() => setUserDisplay(null));
+      });
+      return;
+    }
+
+    if (isAdmin) {
+      api.getMe().then((u: any) => {
+        const name = u?.firstName && u?.lastName ? `${u.firstName} ${u.lastName}` : u?.email ?? 'Utilisateur';
+        const initials = u?.firstName && u?.lastName
+          ? `${u.firstName[0]}${u.lastName[0]}`.toUpperCase()
+          : (u?.email?.[0] ?? 'U').toUpperCase();
+        setUserDisplay({ name, role: u?.role ?? 'Utilisateur', initials, avatarUrl: u?.avatarUrl ?? null });
+      }).catch(() => setUserDisplay(null));
+      return;
+    }
+
     api.getEmployeeMe().then((e: any) => {
       const name = e?.firstName && e?.lastName ? `${e.firstName} ${e.lastName}` : e?.user?.email ?? 'Utilisateur';
       const initials = e?.firstName && e?.lastName
@@ -38,6 +74,7 @@ export function TopBar({
         name,
         role: 'Employé',
         initials,
+        avatarUrl: e?.avatarUrl ?? null,
       });
     }).catch(() => {
       api.getMe().then((u: any) => {
@@ -45,10 +82,11 @@ export function TopBar({
           name: u?.email ?? 'Utilisateur',
           role: u?.role ?? 'Utilisateur',
           initials: (u?.email?.[0] ?? 'U').toUpperCase(),
+          avatarUrl: u?.avatarUrl ?? null,
         });
       }).catch(() => setUserDisplay(null));
     });
-  }, [profileRefreshKey]);
+  }, [profileRefreshKey, userRole]);
 
   useEffect(() => {
     refreshUnread();
@@ -193,8 +231,11 @@ export function TopBar({
               <p className="text-sm font-medium">{userDisplay?.name ?? '…'}</p>
               <p className="text-xs text-muted-foreground">{userDisplay?.role ?? '…'}</p>
             </div>
-            <div className="w-10 h-10 bg-primary rounded-full flex items-center justify-center text-white font-semibold shrink-0">
-              {userDisplay?.initials ?? '…'}
+            <div
+              className="w-10 h-10 rounded-full flex items-center justify-center text-primary-foreground font-semibold shrink-0 overflow-hidden bg-primary"
+              style={userDisplay?.avatarUrl ? { backgroundImage: `url(${api.getUploadUrl(userDisplay.avatarUrl)})`, backgroundSize: 'cover' } : undefined}
+            >
+              {!userDisplay?.avatarUrl && (userDisplay?.initials ?? '…')}
             </div>
           </button>
           {onLogout && (

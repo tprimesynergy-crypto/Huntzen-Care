@@ -1,10 +1,10 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Card } from '@/app/components/ui/card';
 import { Button } from '@/app/components/ui/button';
 import { Input } from '@/app/components/ui/input';
 import { Label } from '@/app/components/ui/label';
 import { Textarea } from '@/app/components/ui/textarea';
-import { Phone, Mail, Briefcase, Calendar, BookOpen, Heart, Pencil, X, Check } from 'lucide-react';
+import { Phone, Mail, Briefcase, Calendar, BookOpen, Heart, Pencil, X, Check, Upload, Trash2 } from 'lucide-react';
 import { api } from '@/app/services/api';
 
 interface MyProfileProps {
@@ -22,7 +22,10 @@ export function MyProfile({ onProfileUpdated }: MyProfileProps) {
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState<'avatar' | 'cover' | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
+  const coverInputRef = useRef<HTMLInputElement>(null);
 
   const [form, setForm] = useState({
     firstName: '',
@@ -117,6 +120,75 @@ export function MyProfile({ onProfileUpdated }: MyProfileProps) {
     }
     setError(null);
     setEditing(false);
+  };
+
+  const avatarDisplayUrl = profile ? api.getUploadUrl(profile.avatarUrl) || undefined : undefined;
+  const coverDisplayUrl = profile ? api.getUploadUrl(profile.coverUrl) || undefined : undefined;
+
+  const handleAvatarFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !profile) return;
+    e.target.value = '';
+    setUploading('avatar');
+    setError(null);
+    try {
+      const { url } = await api.uploadProfilePhoto(file, 'avatar');
+      await api.updateEmployeeMe({ avatarUrl: url });
+      await loadProfile();
+      onProfileUpdated?.();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erreur lors de l\'upload.');
+    } finally {
+      setUploading(null);
+    }
+  };
+
+  const handleCoverFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !profile) return;
+    e.target.value = '';
+    setUploading('cover');
+    setError(null);
+    try {
+      const { url } = await api.uploadProfilePhoto(file, 'cover');
+      await api.updateEmployeeMe({ coverUrl: url });
+      await loadProfile();
+      onProfileUpdated?.();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erreur lors de l\'upload.');
+    } finally {
+      setUploading(null);
+    }
+  };
+
+  const handleRemoveAvatar = async () => {
+    if (!profile) return;
+    setUploading('avatar');
+    setError(null);
+    try {
+      await api.updateEmployeeMe({ avatarUrl: null });
+      await loadProfile();
+      onProfileUpdated?.();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erreur.');
+    } finally {
+      setUploading(null);
+    }
+  };
+
+  const handleRemoveCover = async () => {
+    if (!profile) return;
+    setUploading('cover');
+    setError(null);
+    try {
+      await api.updateEmployeeMe({ coverUrl: null });
+      await loadProfile();
+      onProfileUpdated?.();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erreur.');
+    } finally {
+      setUploading(null);
+    }
   };
 
   if (loading && !profile) {
@@ -248,16 +320,55 @@ export function MyProfile({ onProfileUpdated }: MyProfileProps) {
         </Card>
       ) : (
         <Card className="overflow-hidden">
-          <div
-            className="relative h-48 bg-gradient-to-r from-primary to-secondary"
-            style={profile.coverUrl ? { backgroundImage: `url(${profile.coverUrl})`, backgroundSize: 'cover' } : undefined}
+          <input
+            ref={coverInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/gif,image/webp"
+            className="hidden"
+            onChange={handleCoverFile}
           />
+          <input
+            ref={avatarInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/gif,image/webp"
+            className="hidden"
+            onChange={handleAvatarFile}
+          />
+          <div
+            className="relative h-48 bg-gradient-to-r from-primary to-secondary group"
+            style={coverDisplayUrl ? { backgroundImage: `url(${coverDisplayUrl})`, backgroundSize: 'cover' } : undefined}
+          >
+            <div className="absolute inset-0 flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity bg-black/40">
+              <Button type="button" variant="secondary" size="sm" onClick={() => coverInputRef.current?.click()} disabled={!!uploading}>
+                <Upload className="w-4 h-4 mr-1" />
+                {uploading === 'cover' ? 'Envoi…' : 'Changer'}
+              </Button>
+              {(profile.coverUrl || coverDisplayUrl) && (
+                <Button type="button" variant="secondary" size="sm" onClick={handleRemoveCover} disabled={!!uploading}>
+                  <Trash2 className="w-4 h-4 mr-1" />
+                  Supprimer
+                </Button>
+              )}
+            </div>
+          </div>
           <div className="px-6 pb-6 -mt-16 relative">
-            <div
-              className="w-24 h-24 rounded-full border-4 border-background bg-muted flex items-center justify-center text-2xl font-semibold text-foreground shrink-0 overflow-hidden"
-              style={profile.avatarUrl ? { backgroundImage: `url(${profile.avatarUrl})`, backgroundSize: 'cover' } : undefined}
-            >
-              {!profile.avatarUrl && `${profile.firstName?.[0] ?? ''}${profile.lastName?.[0] ?? ''}`}
+            <div className="relative inline-block group/avatar">
+              <div
+                className="w-24 h-24 rounded-full border-4 border-background bg-muted flex items-center justify-center text-2xl font-semibold text-foreground shrink-0 overflow-hidden"
+                style={avatarDisplayUrl ? { backgroundImage: `url(${avatarDisplayUrl})`, backgroundSize: 'cover' } : undefined}
+              >
+                {!profile.avatarUrl && `${profile.firstName?.[0] ?? ''}${profile.lastName?.[0] ?? ''}`}
+              </div>
+              <div className="absolute inset-0 flex items-center justify-center gap-1 rounded-full opacity-0 group-hover/avatar:opacity-100 transition-opacity bg-black/40">
+                <Button type="button" variant="secondary" size="icon" className="h-8 w-8" onClick={() => avatarInputRef.current?.click()} disabled={!!uploading} title="Changer la photo">
+                  <Upload className="w-4 h-4" />
+                </Button>
+                {(profile.avatarUrl || avatarDisplayUrl) && (
+                  <Button type="button" variant="secondary" size="icon" className="h-8 w-8" onClick={handleRemoveAvatar} disabled={!!uploading} title="Supprimer la photo">
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                )}
+              </div>
             </div>
             <h2 className="text-2xl font-bold text-foreground mt-4">{name || '—'}</h2>
             <div className="flex flex-wrap gap-3 mt-2 text-muted-foreground text-sm">

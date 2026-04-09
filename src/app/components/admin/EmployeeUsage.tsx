@@ -256,9 +256,17 @@ export function EmployeeUsage() {
                 {filteredEmployees.map((e) => (
                   <tr key={e.id} className="border-b border-border">
                     <td className="py-2 px-3">
-                      {(e.firstName || e.lastName)
-                        ? `${e.firstName ?? ''} ${e.lastName ?? ''}`.trim()
-                        : '—'}
+                      <div className="flex items-center gap-2">
+                        <div
+                          className="w-8 h-8 rounded-full shrink-0 flex items-center justify-center text-xs font-medium bg-muted text-muted-foreground overflow-hidden"
+                          style={e.avatarUrl ? { backgroundImage: `url(${api.getUploadUrl(e.avatarUrl)})`, backgroundSize: 'cover' } : undefined}
+                        >
+                          {!e.avatarUrl && (e.firstName?.[0] ?? e.lastName?.[0] ?? e.email?.[0] ?? '?')}
+                        </div>
+                        {(e.firstName || e.lastName)
+                          ? `${e.firstName ?? ''} ${e.lastName ?? ''}`.trim()
+                          : '—'}
+                      </div>
                     </td>
                     <td className="py-2 px-3">{e.email ?? '—'}</td>
                     <td className="py-2 px-3">{e.department ?? '—'}</td>

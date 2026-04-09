@@ -1,4 +1,4 @@
-import { useState, useEffect, useLayoutEffect } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import { Sidebar } from '@/app/components/layout/Sidebar';
 import { TopBar } from '@/app/components/layout/TopBar';
 import { EmergencyModal } from '@/app/components/layout/EmergencyModal';
@@ -45,6 +45,9 @@ export default function App() {
   const [profileRefreshKey, setProfileRefreshKey] = useState(0);
   const [messagesPreselectConsultationId, setMessagesPreselectConsultationId] = useState<string | null>(null);
   const [messagesPreselectPractitionerId, setMessagesPreselectPractitionerId] = useState<string | null>(null);
+  const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
+  const setUnreadMessagesCountRef = useRef(setUnreadMessagesCount);
+  setUnreadMessagesCountRef.current = setUnreadMessagesCount;
   const [invitationTokenFromUrl, setInvitationTokenFromUrl] = useState<string | null>(() => {
     if (typeof window === 'undefined') return null;
     const params = new URLSearchParams(window.location.search);
@@ -55,6 +58,24 @@ export default function App() {
     api.setOnUnauthorized(() => setIsLoggedIn(false));
   }, []);
 
+  const refreshUnreadCount = useCallback(() => {
+    if (userRole !== 'EMPLOYEE' && userRole !== 'PRACTITIONER') return;
+    api.getUnreadMessagesCount().then((r) => setUnreadMessagesCount(r?.count ?? 0)).catch(() => {});
+  }, [userRole]);
+
+  useEffect(() => {
+    if (!isLoggedIn) return;
+    const onFocus = () => refreshUnreadCount();
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+  }, [isLoggedIn, refreshUnreadCount]);
+
+  useEffect(() => {
+    if (!isLoggedIn || (userRole !== 'EMPLOYEE' && userRole !== 'PRACTITIONER')) return;
+    const t = setTimeout(() => refreshUnreadCount(), 600);
+    return () => clearTimeout(t);
+  }, [isLoggedIn, userRole, refreshUnreadCount]);
+
   useEffect(() => {
     const token = localStorage.getItem('auth_token');
     if (!token) {
@@ -63,12 +84,24 @@ export default function App() {
       return;
     }
     api.getMe()
-      .then((user: any) => {
+      .then(async (user: any) => {
         const role = user?.role || null;
         setUserRole(role);
         setSessionChecked(true);
         setIsLoggedIn(true);
-        
+        if (role === 'EMPLOYEE' || role === 'PRACTITIONER') {
+          api.getUnreadMessagesCount().then((r) => {
+            const count = r?.count ?? 0;
+            console.log('[App] login unread count', count, 'raw', r);
+            setUnreadMessagesCount(count);
+            if (count > 0) {
+              api.getUnreadMessagesDetails().then((d) => {
+                console.log('[App] unread messages (these are counted as unread):', d);
+                d?.messages?.forEach((m, i) => console.log(`  ${i + 1}. id=${m.id} consultationId=${m.consultationId} senderId=${m.senderId} createdAt=${m.createdAt} contentPreview=${m.contentPreview}`));
+              }).catch(() => {});
+            }
+          }).catch(() => {});
+        }
         // Set initial dashboard based on role
         if (role === 'PRACTITIONER') {
           setActiveTab('practitioner-dashboard');
@@ -152,18 +185,43 @@ export default function App() {
               setPractitionerProfileReturnTab('messages');
               setActiveTab('practitioner-profile');
             }}
+            onMarkedAsRead={(count) => {
+              const setter = setUnreadMessagesCountRef.current;
+              if (typeof count === 'number') {
+                console.log('[App] onMarkedAsRead(count)', count);
+                setter(count);
+                if (count > 0) {
+                  api.getUnreadMessagesDetails().then((d) => {
+                    console.log('[App] unread messages (these are counted as unread):', d);
+                    d?.messages?.forEach((m, i) => console.log(`  ${i + 1}. id=${m.id} consultationId=${m.consultationId} senderId=${m.senderId} createdAt=${m.createdAt} contentPreview=${m.contentPreview}`));
+                  }).catch(() => {});
+                }
+              } else {
+                api.getUnreadMessagesCount().then((r) => {
+                  const c = r?.count ?? 0;
+                  console.log('[App] onMarkedAsRead refetch', c, 'raw', r);
+                  setter(c);
+                  if (c > 0) {
+                    api.getUnreadMessagesDetails().then((d) => {
+                      console.log('[App] unread messages (these are counted as unread):', d);
+                      d?.messages?.forEach((m, i) => console.log(`  ${i + 1}. id=${m.id} consultationId=${m.consultationId} senderId=${m.senderId} createdAt=${m.createdAt} contentPreview=${m.contentPreview}`));
+                    }).catch(() => {});
+                  }
+                }).catch(() => {});
+              }
+            }}
           />
         );
       case 'news':
-        return <News onViewArticle={handleViewArticle} />;
+        return <News onViewArticle={handleViewArticle} userRole={userRole} />;
       case 'settings':
         return <Settings userRole={userRole} onAccountDeleted={() => setIsLoggedIn(false)} />;
       case 'profile':
         if (userRole === 'PRACTITIONER') {
-          return <MyPractitionerProfile />;
+          return <MyPractitionerProfile onProfileUpdated={() => setProfileRefreshKey((k) => k + 1)} />;
         }
         if (userRole === 'SUPER_ADMIN' || userRole === 'ADMIN_HUNTZEN' || userRole === 'ADMIN_RH') {
-          return <AdminProfile />;
+          return <AdminProfile onProfileUpdated={() => setProfileRefreshKey((k) => k + 1)} />;
         }
         return <MyProfile onProfileUpdated={() => setProfileRefreshKey((k) => k + 1)} />;
       case 'practitioner-profile':
@@ -180,7 +238,7 @@ export default function App() {
           />
         );
       case 'company-profile':
-        return <CompanyProfile />;
+        return <CompanyProfile userRole={userRole} />;
       case 'practitioner-dashboard':
         return <PractitionerDashboard />;
       case 'admin-huntzen-dashboard':
@@ -288,6 +346,7 @@ export default function App() {
         }}
         profileRefreshKey={profileRefreshKey}
         userRole={userRole}
+        unreadMessagesCount={unreadMessagesCount}
       />
 
       {/* Main Content */}
@@ -301,6 +360,7 @@ export default function App() {
             setIsLoggedIn(false);
           }}
           profileRefreshKey={profileRefreshKey}
+          userRole={userRole}
         />
 
         {/* Content Area */}

@@ -86,7 +86,7 @@ export function ArticlePage({ articleId, onBack }: ArticlePageProps) {
 
       <Card className="overflow-hidden">
         <img
-          src={article.imageUrl || DEFAULT_IMG}
+          src={api.getUploadUrl(article.imageUrl) || DEFAULT_IMG}
           alt={article.title}
           className="w-full h-64 md:h-80 object-cover"
         />

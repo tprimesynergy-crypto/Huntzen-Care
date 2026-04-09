@@ -40,7 +40,7 @@ export function EmployeeDashboard({ onNavigate, onViewArticle }: EmployeeDashboa
       const now = new Date();
       const isDev = import.meta.env.DEV; // true in development, false in production
       const upcoming = consultations
-        .filter((c: any) => new Date(c.scheduledAt) >= now && c.status !== 'CANCELLED')
+        .filter((c: any) => new Date(c.scheduledAt) >= now && c.status !== 'CANCELLED' && c.status !== 'COMPLETED')
         .sort((a: any, b: any) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime())
         .slice(0, 2)
         .map((c: any) => {

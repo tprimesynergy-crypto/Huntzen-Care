@@ -122,11 +122,86 @@ class ApiClient {
     lastName?: string;
     phoneNumber?: string;
     position?: string;
+    avatarUrl?: string | null;
+    coverUrl?: string | null;
   }) {
     return this.request<any>('/auth/me', {
       method: 'PATCH',
       body: JSON.stringify(data),
     });
+  }
+
+  /** Upload a profile photo (avatar or cover). Returns relative path to store in profile. */
+  async uploadProfilePhoto(file: File, type: 'avatar' | 'cover'): Promise<{ url: string }> {
+    const url = `${this.baseURL}/upload/profile-photo`;
+    const form = new FormData();
+    form.append('file', file);
+    form.append('type', type);
+    const headers: HeadersInit = {};
+    if (this.token) {
+      headers['Authorization'] = `Bearer ${this.token}`;
+    }
+    const res = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: form,
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => null);
+      throw new Error((err as { message?: string })?.message || `Upload failed: ${res.status}`);
+    }
+    return res.json();
+  }
+
+  /** Upload a company logo or cover. Returns relative path to store in company. */
+  async uploadCompanyPhoto(file: File, type: 'logo' | 'cover', companyId: string): Promise<{ url: string }> {
+    const url = `${this.baseURL}/upload/company-photo`;
+    const form = new FormData();
+    form.append('file', file);
+    form.append('type', type);
+    form.append('companyId', companyId);
+    const headers: HeadersInit = {};
+    if (this.token) {
+      headers['Authorization'] = `Bearer ${this.token}`;
+    }
+    const res = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: form,
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => null);
+      throw new Error((err as { message?: string })?.message || `Upload failed: ${res.status}`);
+    }
+    return res.json();
+  }
+
+  /** Upload a news article image. Returns relative path. ADMIN_HUNTZEN & SUPER_ADMIN only. */
+  async uploadNewsImage(file: File): Promise<{ url: string }> {
+    const url = `${this.baseURL}/upload/news-image`;
+    const form = new FormData();
+    form.append('file', file);
+    const headers: HeadersInit = {};
+    if (this.token) {
+      headers['Authorization'] = `Bearer ${this.token}`;
+    }
+    const res = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: form,
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => null);
+      throw new Error((err as { message?: string })?.message || `Upload failed: ${res.status}`);
+    }
+    return res.json();
+  }
+
+  /** Full URL for an uploaded profile image (relative path from API). */
+  getUploadUrl(relativePath: string | null | undefined): string | null {
+    if (!relativePath) return null;
+    const base = this.baseURL.startsWith('http') ? this.baseURL : `${typeof window !== 'undefined' ? window.location.origin : ''}${this.baseURL}`;
+    return relativePath.startsWith('/') ? `${base.replace(/\/$/, '')}${relativePath}` : relativePath;
   }
 
   async changeMyPassword(currentPassword: string, newPassword: string) {
@@ -349,6 +424,18 @@ class ApiClient {
     return this.request<any>(`/news/${id}`);
   }
 
+  async createNews(data: { title: string; content: string; imageUrl?: string | null; companyId?: string | null }) {
+    return this.request<any>('/news', { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  async updateNews(id: string, data: { title?: string; content?: string; imageUrl?: string | null }) {
+    return this.request<any>(`/news/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
+  }
+
+  async deleteNews(id: string) {
+    return this.request<{ ok: boolean }>(`/news/${id}`, { method: 'DELETE' });
+  }
+
   // Journal
   async getJournal() {
     return this.request<any[]>('/journal');
@@ -374,14 +461,42 @@ class ApiClient {
     return this.request<any[]>('/messages/conversations');
   }
 
-  async getMessages(consultationId: string) {
-    return this.request<any[]>(`/messages/consultations/${consultationId}`);
+  async getUnreadMessagesCount(): Promise<{ count: number }> {
+    return this.request<{ count: number }>(`/messages/unread-count?_t=${Date.now()}`);
   }
 
-  async sendMessage(consultationId: string, content: string) {
+  /** Which messages are counted as unread (for debugging). */
+  async getUnreadMessagesDetails(): Promise<{
+    count: number;
+    messages: Array<{ id: string; consultationId: string; senderId: string; contentPreview: string; createdAt: string }>;
+  }> {
+    return this.request('/messages/unread-details');
+  }
+
+  async getMessages(consultationId: string): Promise<{ messages: any[]; unreadCount: number }> {
+    return this.request<{ messages: any[]; unreadCount: number }>(`/messages/consultations/${consultationId}`);
+  }
+
+  async uploadMessageAttachment(file: File): Promise<{ url: string }> {
+    const url = `${this.baseURL}/upload/message-attachment`;
+    const form = new FormData();
+    form.append('file', file);
+    const headers: HeadersInit = {};
+    if (this.token) {
+      headers['Authorization'] = `Bearer ${this.token}`;
+    }
+    const res = await fetch(url, { method: 'POST', headers, body: form });
+    if (!res.ok) {
+      const err = await res.json().catch(() => null);
+      throw new Error((err as { message?: string })?.message || `Upload failed: ${res.status}`);
+    }
+    return res.json();
+  }
+
+  async sendMessage(consultationId: string, content: string, messageType?: 'TEXT' | 'IMAGE' | 'FILE') {
     return this.request<any>('/messages', {
       method: 'POST',
-      body: JSON.stringify({ consultationId, content }),
+      body: JSON.stringify({ consultationId, content, messageType: messageType || 'TEXT' }),
     });
   }
 

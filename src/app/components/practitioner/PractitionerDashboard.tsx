@@ -236,7 +236,7 @@ export function PractitionerDashboard() {
                           <Button
                             size="sm"
                             variant="outline"
-                            className="text-emerald-600 border-emerald-600 hover:bg-emerald-50"
+                            className="text-emerald-600 border-emerald-600 hover:bg-emerald-50 hover:!text-emerald-700"
                             onClick={async () => {
                               try {
                                 await api.completeConsultation(c.id);

@@ -12,20 +12,36 @@ export class MessagesController {
     return this.messagesService.getConversations(req.user.id, req.user.role);
   }
 
+  @Get('unread-count')
+  async getUnreadCount(@Request() req: { user: { id: string; role: string } }) {
+    const count = await this.messagesService.getUnreadCount(req.user.id, req.user.role);
+    return { count };
+  }
+
+  @Get('unread-details')
+  async getUnreadDetails(@Request() req: { user: { id: string; role: string } }) {
+    return this.messagesService.getUnreadDetails(req.user.id, req.user.role);
+  }
+
   @Get('consultations/:id')
   async getByConsultation(
-    @Request() req: { user: { id: string } },
+    @Request() req: { user: { id: string; role: string } },
     @Param('id') id: string,
   ) {
-    return this.messagesService.getByConsultation(id, req.user.id);
+    return this.messagesService.getByConsultation(id, req.user.id, req.user.role);
   }
 
   @Post()
   async send(
     @Request() req: { user: { id: string } },
-    @Body() body: { consultationId: string; content: string },
+    @Body() body: { consultationId: string; content: string; messageType?: 'TEXT' | 'IMAGE' | 'FILE' },
   ) {
-    return this.messagesService.send(body.consultationId, req.user.id, body.content);
+    return this.messagesService.send(
+      body.consultationId,
+      req.user.id,
+      body.content,
+      body.messageType || 'TEXT',
+    );
   }
 
   @Post('start-conversation')

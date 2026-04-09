@@ -21,6 +21,7 @@ type AdminUser = {
   companyName: string | null;
   firstName: string | null;
   lastName: string | null;
+  avatarUrl?: string | null;
   phoneNumber?: string | null;
   position?: string | null;
 };
@@ -296,12 +297,22 @@ export function AdminAdmins() {
               {admins.map((admin) => (
                 <tr key={admin.id} className="border-t">
                   <td className="px-3 py-2">
-                    <div className="font-medium">{admin.email}</div>
-                    {(admin.firstName || admin.lastName) && (
-                      <div className="text-xs text-muted-foreground">
-                        {(admin.firstName ?? '') + ' ' + (admin.lastName ?? '')}
+                    <div className="flex items-center gap-2">
+                      <div
+                        className="w-8 h-8 rounded-full shrink-0 flex items-center justify-center text-xs font-medium bg-muted text-muted-foreground overflow-hidden"
+                        style={admin.avatarUrl ? { backgroundImage: `url(${api.getUploadUrl(admin.avatarUrl)})`, backgroundSize: 'cover' } : undefined}
+                      >
+                        {!admin.avatarUrl && (admin.firstName?.[0] ?? admin.lastName?.[0] ?? admin.email?.[0] ?? '?')}
                       </div>
-                    )}
+                      <div>
+                        <div className="font-medium">{admin.email}</div>
+                        {(admin.firstName || admin.lastName) && (
+                          <div className="text-xs text-muted-foreground">
+                            {(admin.firstName ?? '') + ' ' + (admin.lastName ?? '')}
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   </td>
                   <td className="px-3 py-2">
                     {admin.role === 'ADMIN_RH'

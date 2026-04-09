@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
 import { Card } from '@/app/components/ui/card';
 import { Button } from '@/app/components/ui/button';
 import { Input } from '@/app/components/ui/input';
@@ -10,6 +10,16 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/app/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/app/components/ui/alert-dialog';
 import { api } from '@/app/services/api';
 
 type CompanySummary = {
@@ -52,6 +62,10 @@ export function AdminCompanies() {
   const [createCompanyCountry, setCreateCompanyCountry] = useState('France');
   const [createCompanyLogoUrl, setCreateCompanyLogoUrl] = useState('');
   const [createCompanyCoverUrl, setCreateCompanyCoverUrl] = useState('');
+  const [createCompanyLogoFile, setCreateCompanyLogoFile] = useState<File | null>(null);
+  const [createCompanyCoverFile, setCreateCompanyCoverFile] = useState<File | null>(null);
+  const createCompanyLogoInputRef = useRef<HTMLInputElement>(null);
+  const createCompanyCoverInputRef = useRef<HTMLInputElement>(null);
   const [createCompanyIsActive, setCreateCompanyIsActive] = useState(false);
   const [creatingCompany, setCreatingCompany] = useState(false);
 
@@ -74,6 +88,9 @@ export function AdminCompanies() {
 
   const [deleteConfirmCompany, setDeleteConfirmCompany] = useState<CompanySummary | null>(null);
   const [deletingCompany, setDeletingCompany] = useState(false);
+
+  const [toggleActiveCompany, setToggleActiveCompany] = useState<{ company: CompanySummary; deactivating: boolean } | null>(null);
+  const [togglingActive, setTogglingActive] = useState(false);
 
   const [editEmployeeOpen, setEditEmployeeOpen] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<any | null>(null);
@@ -342,24 +359,7 @@ export function AdminCompanies() {
                       variant="outline"
                       size="xs"
                       className="h-7 text-[11px]"
-                      onClick={async () => {
-                        const ok = window.confirm(
-                          c.isActive
-                            ? 'Désactiver cette entreprise (elle ne sera plus visible) ?'
-                            : 'Réactiver cette entreprise ?',
-                        );
-                        if (!ok) return;
-                        try {
-                          await api.updateAdminCompany(c.id, {
-                            isActive: !c.isActive,
-                          });
-                          const refreshed = await api.getAdminCompanies();
-                          setCompanies(refreshed || []);
-                          if (selectedCompanyId === c.id) setSelectedCompanyId(null);
-                        } catch (err) {
-                          console.error('Failed to toggle company active', err);
-                        }
-                      }}
+                      onClick={() => setToggleActiveCompany({ company: c, deactivating: c.isActive })}
                     >
                       {c.isActive ? 'Désactiver' : 'Réactiver'}
                     </Button>
@@ -418,13 +418,21 @@ export function AdminCompanies() {
                 {companyEmployees.map((e) => (
                   <tr key={e.id} className="border-t">
                     <td className="px-3 py-1.5">
-                      {e.firstName || e.lastName ? (
-                        <span>
-                          {(e.firstName ?? '') + ' ' + (e.lastName ?? '')}
-                        </span>
-                      ) : (
-                        <span className="text-muted-foreground">Sans nom</span>
-                      )}
+                      <div className="flex items-center gap-2">
+                        <div
+                          className="w-8 h-8 rounded-full shrink-0 flex items-center justify-center text-xs font-medium bg-muted text-muted-foreground overflow-hidden"
+                          style={e.avatarUrl ? { backgroundImage: `url(${api.getUploadUrl(e.avatarUrl)})`, backgroundSize: 'cover' } : undefined}
+                        >
+                          {!e.avatarUrl && (e.firstName?.[0] ?? e.lastName?.[0] ?? e.email?.[0] ?? '?')}
+                        </div>
+                        {e.firstName || e.lastName ? (
+                          <span>
+                            {(e.firstName ?? '') + ' ' + (e.lastName ?? '')}
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground">Sans nom</span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-3 py-1.5">{e.email ?? '-'}</td>
                     <td className="px-3 py-1.5">{e.department ?? '-'}</td>
@@ -509,7 +517,16 @@ export function AdminCompanies() {
       </Card>
 
       {/* Dialog création entreprise */}
-      <Dialog open={createCompanyOpen} onOpenChange={setCreateCompanyOpen}>
+      <Dialog
+        open={createCompanyOpen}
+        onOpenChange={(open) => {
+          if (!open && !creatingCompany) {
+            setCreateCompanyLogoFile(null);
+            setCreateCompanyCoverFile(null);
+          }
+          setCreateCompanyOpen(open);
+        }}
+      >
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Créer une entreprise</DialogTitle>
@@ -599,34 +616,90 @@ export function AdminCompanies() {
                 />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label htmlFor="company-sector">Secteur (optionnel)</Label>
-                <Input
-                  id="company-sector"
-                  value={createCompanySector}
-                  onChange={(e) => setCreateCompanySector(e.target.value)}
-                  placeholder="Banque, Tech, Santé..."
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="company-logo">Logo URL (optionnel)</Label>
-                <Input
-                  id="company-logo"
-                  value={createCompanyLogoUrl}
-                  onChange={(e) => setCreateCompanyLogoUrl(e.target.value)}
-                  placeholder="https://…"
-                />
-              </div>
-            </div>
             <div className="space-y-1.5">
-              <Label htmlFor="company-cover">Cover URL (optionnel)</Label>
+              <Label htmlFor="company-sector">Secteur (optionnel)</Label>
               <Input
-                id="company-cover"
-                value={createCompanyCoverUrl}
-                onChange={(e) => setCreateCompanyCoverUrl(e.target.value)}
-                placeholder="https://…"
+                id="company-sector"
+                value={createCompanySector}
+                onChange={(e) => setCreateCompanySector(e.target.value)}
+                placeholder="Banque, Tech, Santé..."
               />
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>Logo (optionnel)</Label>
+                <input
+                  ref={createCompanyLogoInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/gif,image/webp"
+                  className="hidden"
+                  onChange={(e) => setCreateCompanyLogoFile(e.target.files?.[0] ?? null)}
+                />
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => createCompanyLogoInputRef.current?.click()}
+                    disabled={creatingCompany}
+                  >
+                    Téléverser le logo
+                  </Button>
+                  {createCompanyLogoFile && (
+                    <span className="text-xs text-muted-foreground truncate" title={createCompanyLogoFile.name}>
+                      {createCompanyLogoFile.name}
+                    </span>
+                  )}
+                  {createCompanyLogoFile && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="text-destructive hover:text-destructive"
+                      onClick={() => setCreateCompanyLogoFile(null)}
+                    >
+                      Supprimer
+                    </Button>
+                  )}
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Couverture (optionnel)</Label>
+                <input
+                  ref={createCompanyCoverInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/gif,image/webp"
+                  className="hidden"
+                  onChange={(e) => setCreateCompanyCoverFile(e.target.files?.[0] ?? null)}
+                />
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => createCompanyCoverInputRef.current?.click()}
+                    disabled={creatingCompany}
+                  >
+                    Téléverser la couverture
+                  </Button>
+                  {createCompanyCoverFile && (
+                    <span className="text-xs text-muted-foreground truncate" title={createCompanyCoverFile.name}>
+                      {createCompanyCoverFile.name}
+                    </span>
+                  )}
+                  {createCompanyCoverFile && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="text-destructive hover:text-destructive"
+                      onClick={() => setCreateCompanyCoverFile(null)}
+                    >
+                      Supprimer
+                    </Button>
+                  )}
+                </div>
+              </div>
             </div>
             <div className="flex items-center gap-2 pt-2">
               <input
@@ -672,13 +745,24 @@ export function AdminCompanies() {
                     address: createCompanyAddress || null,
                     city: createCompanyCity || null,
                     country: createCompanyCountry || null,
-                    logoUrl: createCompanyLogoUrl || null,
-                    coverUrl: createCompanyCoverUrl || null,
+                    logoUrl: null,
+                    coverUrl: null,
                     isActive: createCompanyIsActive,
                   });
+                  const companyId = created?.id;
+                  if (companyId) {
+                    if (createCompanyLogoFile) {
+                      const { url } = await api.uploadCompanyPhoto(createCompanyLogoFile, 'logo', companyId);
+                      await api.updateAdminCompany(companyId, { logoUrl: url });
+                    }
+                    if (createCompanyCoverFile) {
+                      const { url } = await api.uploadCompanyPhoto(createCompanyCoverFile, 'cover', companyId);
+                      await api.updateAdminCompany(companyId, { coverUrl: url });
+                    }
+                  }
                   const refreshed = await api.getAdminCompanies();
                   setCompanies(refreshed || []);
-                  setSelectedCompanyId(created?.id ?? null);
+                  setSelectedCompanyId(companyId ?? null);
                   setCreateCompanyOpen(false);
                   setCreateCompanyName('');
                   setCreateCompanySlug('');
@@ -690,6 +774,8 @@ export function AdminCompanies() {
                   setCreateCompanyCountry('France');
                   setCreateCompanyLogoUrl('');
                   setCreateCompanyCoverUrl('');
+                  setCreateCompanyLogoFile(null);
+                  setCreateCompanyCoverFile(null);
                   setCreateCompanyIsActive(false);
                 } catch (err) {
                   setError(
@@ -874,6 +960,72 @@ export function AdminCompanies() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Deactivate / Reactivate company confirmation */}
+      <AlertDialog open={!!toggleActiveCompany} onOpenChange={(open) => !open && setToggleActiveCompany(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {toggleActiveCompany?.deactivating
+                ? 'Désactiver cette entreprise ?'
+                : 'Réactiver cette entreprise ?'}
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm text-muted-foreground">
+                {toggleActiveCompany?.deactivating ? (
+                  <>
+                    <p>
+                      Vous êtes sur le point de désactiver l&apos;entreprise <strong>{toggleActiveCompany?.company?.name}</strong>.
+                    </p>
+                    <p className="font-medium text-foreground">
+                      Avertissement :
+                    </p>
+                    <ul className="list-disc list-inside space-y-1">
+                      <li>Les <strong>employés</strong> de cette entreprise ne pourront plus se connecter à la plateforme.</li>
+                      <li>Les <strong>praticiens</strong> rattachés à cette entreprise ne pourront plus se connecter.</li>
+                      <li>Les <strong>admins RH / DRH</strong> de cette entreprise ne pourront plus se connecter.</li>
+                    </ul>
+                    <p>
+                      Seuls les comptes <strong>Admin HuntZen</strong> et <strong>Super Admin</strong> conservent l&apos;accès. Réactiver l&apos;entreprise rétablira les connexions.
+                    </p>
+                  </>
+                ) : (
+                  <p>
+                    Réactiver l&apos;entreprise <strong>{toggleActiveCompany?.company?.name}</strong> permettra à nouveau aux employés, praticiens et admins RH de cette entreprise de se connecter à la plateforme.
+                  </p>
+                )}
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={togglingActive}>Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={togglingActive}
+              className={toggleActiveCompany?.deactivating ? 'bg-destructive text-destructive-foreground hover:bg-destructive/90' : ''}
+              onClick={async () => {
+                if (!toggleActiveCompany) return;
+                setTogglingActive(true);
+                setError(null);
+                try {
+                  await api.updateAdminCompany(toggleActiveCompany.company.id, {
+                    isActive: !toggleActiveCompany.company.isActive,
+                  });
+                  const refreshed = await api.getAdminCompanies();
+                  setCompanies(refreshed || []);
+                  if (selectedCompanyId === toggleActiveCompany.company.id) setSelectedCompanyId(null);
+                  setToggleActiveCompany(null);
+                } catch (err) {
+                  setError(err instanceof Error ? err.message : 'Erreur lors de la mise à jour.');
+                } finally {
+                  setTogglingActive(false);
+                }
+              }}
+            >
+              {togglingActive ? 'En cours…' : toggleActiveCompany?.deactivating ? 'Désactiver l\'entreprise' : 'Réactiver'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Delete company confirmation */}
       <Dialog open={!!deleteConfirmCompany} onOpenChange={(open) => !open && setDeleteConfirmCompany(null)}>

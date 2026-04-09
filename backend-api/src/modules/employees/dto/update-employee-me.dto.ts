@@ -1,4 +1,4 @@
-import { IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
+import { IsOptional, IsString, MaxLength, MinLength, ValidateIf } from 'class-validator';
 
 export class UpdateEmployeeMeDto {
   @IsOptional()
@@ -34,12 +34,14 @@ export class UpdateEmployeeMeDto {
   bio?: string;
 
   @IsOptional()
+  @ValidateIf((_, v) => v != null && v !== '')
   @IsString()
   @MaxLength(500)
-  avatarUrl?: string;
+  avatarUrl?: string | null;
 
   @IsOptional()
+  @ValidateIf((_, v) => v != null && v !== '')
   @IsString()
   @MaxLength(500)
-  coverUrl?: string;
+  coverUrl?: string | null;
 }

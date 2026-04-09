@@ -346,6 +346,7 @@ export class HRService {
       email: e.user?.email ?? null,
       role: e.user?.role ?? null,
       isActive: e.user?.isActive ?? false,
+      avatarUrl: e.avatarUrl ?? null,
     }));
   }
 

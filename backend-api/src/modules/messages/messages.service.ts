@@ -69,6 +69,16 @@ export class MessagesService {
       },
       orderBy: { scheduledAt: 'desc' },
     });
+    const unreadAgg = await this.prisma.message.groupBy({
+      by: ['consultationId'],
+      where: {
+        consultationId: { in: ids },
+        isRead: false,
+        senderId: { not: userId },
+      },
+      _count: { id: true },
+    });
+    const unreadMap = new Map(unreadAgg.map((u) => [u.consultationId, u._count.id]));
     const isEmployee = userRole === 'EMPLOYEE';
 
     const grouped = new Map<string, any>();
@@ -93,9 +103,14 @@ export class MessagesService {
         avatar: isEmployee
           ? (p ? `${p.firstName?.[0] || ''}${p.lastName?.[0] || ''}`.toUpperCase() : '?')
           : (e ? `${e.firstName?.[0] || ''}${e.lastName?.[0] || ''}`.toUpperCase() : '?'),
-        lastMessage: last?.content ?? null,
+        lastMessage:
+          last?.messageType === 'IMAGE'
+            ? '📎 Image'
+            : last?.messageType === 'FILE'
+              ? '📎 Fichier joint'
+              : (last?.content ?? null),
         lastMessageTime: last?.createdAt ?? c.createdAt,
-        unread: 0,
+        unread: unreadMap.get(c.id) ?? 0,
       };
 
       const existing = grouped.get(key);
@@ -113,28 +128,85 @@ export class MessagesService {
     return Array.from(grouped.values());
   }
 
-  async getByConsultation(consultationId: string, userId: string) {
-    await this.ensureParticipant(consultationId, userId);
-    const msgs = await this.prisma.message.findMany({
-      where: { consultationId },
-      orderBy: { createdAt: 'asc' },
+  async getUnreadCount(userId: string, userRole: string): Promise<number> {
+    const ids = await this.getConsultationIdsForUser(userId, userRole);
+    if (ids.length === 0) return 0;
+    const result = await this.prisma.message.count({
+      where: {
+        consultationId: { in: ids },
+        isRead: false,
+        senderId: { not: userId },
+      },
     });
-    const emp = await this.prisma.consultation.findUnique({
-      where: { id: consultationId },
-      select: { employee: { select: { userId: true } } },
-    });
-    const employeeUserId = emp?.employee.userId;
-    return msgs.map((m) => ({
-      id: m.id,
-      sender: m.senderId === userId ? 'me' : 'other',
-      senderRole: m.senderRole,
-      content: m.content,
-      time: m.createdAt,
-      isRead: m.isRead,
-    }));
+    return result;
   }
 
-  async send(consultationId: string, userId: string, content: string) {
+  /** Same as getUnreadCount but returns the actual messages so you can see which ones are counted as unread. */
+  async getUnreadDetails(userId: string, userRole: string): Promise<{ count: number; messages: Array<{ id: string; consultationId: string; senderId: string; contentPreview: string; createdAt: Date }> }> {
+    const ids = await this.getConsultationIdsForUser(userId, userRole);
+    if (ids.length === 0) return { count: 0, messages: [] };
+    const messages = await this.prisma.message.findMany({
+      where: {
+        consultationId: { in: ids },
+        isRead: false,
+        senderId: { not: userId },
+      },
+      select: { id: true, consultationId: true, senderId: true, content: true, createdAt: true },
+      orderBy: { createdAt: 'desc' },
+    });
+    return {
+      count: messages.length,
+      messages: messages.map((m) => ({
+        id: m.id,
+        consultationId: m.consultationId,
+        senderId: m.senderId,
+        contentPreview: m.content.slice(0, 80) + (m.content.length > 80 ? '…' : ''),
+        createdAt: m.createdAt,
+      })),
+    };
+  }
+
+  async markConversationAsRead(consultationId: string, userId: string): Promise<void> {
+    await this.ensureParticipant(consultationId, userId);
+    await this.prisma.message.updateMany({
+      where: {
+        consultationId,
+        senderId: { not: userId },
+      },
+      data: { isRead: true, readAt: new Date() },
+    });
+  }
+
+  async getByConsultation(consultationId: string, userId: string, userRole: string) {
+    await this.ensureParticipant(consultationId, userId);
+    await this.markConversationAsRead(consultationId, userId);
+    const [msgs, unreadCount] = await Promise.all([
+      this.prisma.message.findMany({
+        where: { consultationId },
+        orderBy: { createdAt: 'asc' },
+      }),
+      this.getUnreadCount(userId, userRole),
+    ]);
+    return {
+      messages: msgs.map((m) => ({
+        id: m.id,
+        sender: m.senderId === userId ? 'me' : 'other',
+        senderRole: m.senderRole,
+        content: m.content,
+        messageType: m.messageType,
+        time: m.createdAt,
+        isRead: m.isRead,
+      })),
+      unreadCount,
+    };
+  }
+
+  async send(
+    consultationId: string,
+    userId: string,
+    content: string,
+    messageType: 'TEXT' | 'IMAGE' | 'FILE' = 'TEXT',
+  ) {
     const { role } = await this.ensureParticipant(consultationId, userId);
     return this.prisma.message.create({
       data: {
@@ -142,6 +214,7 @@ export class MessagesService {
         senderId: userId,
         senderRole: role,
         content,
+        messageType,
       },
     });
   }

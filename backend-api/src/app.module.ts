@@ -15,6 +15,7 @@ import { AdminModule } from './modules/admin/admin.module';
 import { RatingsModule } from './modules/ratings/ratings.module';
 import { EmergencyModule } from './modules/emergency/emergency.module';
 import { ActivityModule } from './modules/activity/activity.module';
+import { UploadModule } from './modules/upload/upload.module';
 
 @Module({
   imports: [
@@ -36,6 +37,7 @@ import { ActivityModule } from './modules/activity/activity.module';
     RatingsModule,
     EmergencyModule,
     ActivityModule,
+    UploadModule,
   ],
 })
 export class AppModule {}

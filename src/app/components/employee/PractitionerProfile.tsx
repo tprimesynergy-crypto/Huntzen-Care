@@ -122,7 +122,7 @@ export function PractitionerProfile({ practitionerId, onClose, onStartMessages, 
         <div className="relative h-32 bg-gradient-to-r from-primary/20 to-secondary/20" />
         <div className="px-6 pb-6 -mt-12 relative">
           <div className="flex flex-col md:flex-row gap-6 items-start md:items-end">
-            <div className="w-24 h-24 rounded-full border-4 border-background bg-primary flex items-center justify-center text-2xl font-semibold text-white shrink-0">
+            <div className="w-24 h-24 rounded-full border-4 border-background bg-primary flex items-center justify-center text-2xl font-semibold text-primary-foreground shrink-0">
               {avatar}
             </div>
             <div className="flex-1">

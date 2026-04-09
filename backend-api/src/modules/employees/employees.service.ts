@@ -37,7 +37,7 @@ export class EmployeesService {
     return employee;
   }
 
-  async updateMe(userId: string, dto: { firstName?: string; lastName?: string; department?: string; position?: string; phoneNumber?: string; bio?: string; avatarUrl?: string; coverUrl?: string }) {
+  async updateMe(userId: string, dto: { firstName?: string; lastName?: string; department?: string; position?: string; phoneNumber?: string; bio?: string; avatarUrl?: string | null; coverUrl?: string | null }) {
     const employee = await this.prisma.employee.findUnique({
       where: { userId },
     });
@@ -50,8 +50,8 @@ export class EmployeesService {
     if (dto.position !== undefined) data.position = dto.position;
     if (dto.phoneNumber !== undefined) data.phoneNumber = dto.phoneNumber;
     if (dto.bio !== undefined) data.bio = dto.bio;
-    if (dto.avatarUrl !== undefined) data.avatarUrl = dto.avatarUrl;
-    if (dto.coverUrl !== undefined) data.coverUrl = dto.coverUrl;
+    if (dto.avatarUrl !== undefined) data.avatarUrl = dto.avatarUrl ?? null;
+    if (dto.coverUrl !== undefined) data.coverUrl = dto.coverUrl ?? null;
 
     const updated = await this.prisma.employee.update({
       where: { id: employee.id },

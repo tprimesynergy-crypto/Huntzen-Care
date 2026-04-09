@@ -33,7 +33,7 @@ export class AuthController {
   @Patch('me')
   async updateProfile(
     @Request() req,
-    @Body() body: { email?: string; firstName?: string; lastName?: string; phoneNumber?: string; position?: string },
+    @Body() body: { email?: string; firstName?: string; lastName?: string; phoneNumber?: string; position?: string; avatarUrl?: string | null; coverUrl?: string | null },
   ) {
     return this.authService.updateMe(req.user.id, body);
   }

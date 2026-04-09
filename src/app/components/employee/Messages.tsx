@@ -28,6 +28,8 @@ interface MessagesProps {
   onPreselectPractitionerUsed?: () => void;
   /** When the user opened messages for a practitioner but has no conversation yet, call with that practitioner id so the app can e.g. open their profile to book. */
   onNoConversationWithPractitioner?: (practitionerId: string) => void;
+  /** Called when unread count may have changed: (count) => set sidebar count, or () => refetch count. */
+  onMarkedAsRead?: (count?: number) => void;
 }
 
 function practitionerDisplayName(p: { title?: string; firstName?: string; lastName?: string }): string {
@@ -53,6 +55,7 @@ export function Messages({
   preselectPractitionerId,
   onPreselectPractitionerUsed,
   onNoConversationWithPractitioner,
+  onMarkedAsRead,
 }: MessagesProps) {
   const [conversations, setConversations] = useState<any[]>([]);
   const [allPractitioners, setAllPractitioners] = useState<any[]>([]);
@@ -64,6 +67,8 @@ export function Messages({
   const [searchTerm, setSearchTerm] = useState('');
   const [wantedPractitionerId, setWantedPractitionerId] = useState<string | null>(null);
   const [sendError, setSendError] = useState<string | null>(null);
+  const [attachmentUploading, setAttachmentUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const preselectRef = useRef<string | null>(null);
   const preselectPractitionerRef = useRef<string | null>(null);
   const onPreselectUsedRef = useRef(onPreselectUsed);
@@ -130,14 +135,31 @@ export function Messages({
   }, [loadConversations]);
 
   useEffect(() => {
+    onMarkedAsRead?.();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleMessagesLoaded = useCallback((data: { messages?: any[]; unreadCount?: number }) => {
+    const list = Array.isArray(data?.messages) ? data.messages : (Array.isArray(data) ? data : []);
+    setMessages(list);
+    console.log('[Messages] handleMessagesLoaded — unreadCount from API:', data?.unreadCount, 'typeof:', typeof data?.unreadCount);
+    if (typeof data?.unreadCount === 'number') {
+      onMarkedAsRead?.(data.unreadCount);
+    } else {
+      onMarkedAsRead?.();
+    }
+  }, [onMarkedAsRead]);
+
+  useEffect(() => {
     if (!selectedId) {
       setMessages([]);
       return;
     }
-    api.getMessages(selectedId).then((list) => {
-      setMessages(Array.isArray(list) ? list : []);
+    api.getMessages(selectedId).then((data) => {
+      handleMessagesLoaded(data);
+      loadConversations();
     }).catch(() => setMessages([]));
-  }, [selectedId]);
+  }, [selectedId, handleMessagesLoaded, loadConversations]);
 
   const mergedList = useMemo(() => {
     if (userRole !== 'EMPLOYEE') {
@@ -215,8 +237,9 @@ export function Messages({
       setSelectedId(consultationId);
       setWantedPractitionerId(null);
       await loadConversations();
-      const list = await api.getMessages(consultationId);
-      setMessages(Array.isArray(list) ? list : []);
+      const data = await api.getMessages(consultationId);
+      setMessages(data.messages ?? []);
+      // Do not update sidebar unread count after sending — only when opening a conversation
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Erreur lors de l\'envoi.';
       setSendError(msg);
@@ -233,9 +256,8 @@ export function Messages({
     try {
       await api.sendMessage(selectedId, text);
       setInput('');
-      const list = await api.getMessages(selectedId);
-      setMessages(Array.isArray(list) ? list : []);
-      // Refresh conversations so last message preview and time are up to date
+      const data = await api.getMessages(selectedId);
+      setMessages(data.messages ?? []);
       await loadConversations();
     } catch (e) {
       console.error(e);
@@ -244,8 +266,50 @@ export function Messages({
     }
   };
 
+  const handleAttachClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = '';
+    const isImage = file.type.startsWith('image/');
+    const messageType = isImage ? 'IMAGE' : 'FILE';
+    setAttachmentUploading(true);
+    setSendError(null);
+    try {
+      const { url } = await api.uploadMessageAttachment(file);
+      if (selectedId) {
+        await api.sendMessage(selectedId, url, messageType);
+        const data = await api.getMessages(selectedId);
+        setMessages(data.messages ?? []);
+        await loadConversations();
+      } else if (wantedPractitionerId) {
+        const { consultationId } = await api.startConversation(wantedPractitionerId);
+        await api.sendMessage(consultationId, url, messageType);
+        setSelectedId(consultationId);
+        setWantedPractitionerId(null);
+        const data = await api.getMessages(consultationId);
+        setMessages(data.messages ?? []);
+        await loadConversations();
+      }
+    } catch (err) {
+      setSendError(err instanceof Error ? err.message : 'Erreur lors de l\'envoi du fichier.');
+    } finally {
+      setAttachmentUploading(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*,.pdf,.doc,.docx,.txt"
+        className="hidden"
+        onChange={handleFileSelect}
+      />
       <div>
         <h1 className="text-3xl font-semibold text-foreground mb-2">Messages</h1>
         <p className="text-muted-foreground">
@@ -348,7 +412,17 @@ export function Messages({
                         m.sender === 'me' ? 'bg-primary text-white' : 'bg-muted text-foreground'
                       }`}
                     >
-                      <p className="text-sm">{m.content}</p>
+                      {m.messageType === 'IMAGE' ? (
+                        <a href={api.getUploadUrl(m.content) ?? m.content} target="_blank" rel="noopener noreferrer" className="block">
+                          <img src={api.getUploadUrl(m.content) ?? m.content} alt="Pièce jointe" className="max-w-full max-h-64 rounded object-contain" />
+                        </a>
+                      ) : m.messageType === 'FILE' ? (
+                        <a href={api.getUploadUrl(m.content) ?? m.content} target="_blank" rel="noopener noreferrer" className="text-sm underline break-all">
+                          📎 Fichier joint
+                        </a>
+                      ) : (
+                        <p className="text-sm">{m.content}</p>
+                      )}
                       <p className={`text-xs mt-2 ${m.sender === 'me' ? 'text-white/70' : 'text-muted-foreground'}`}>
                         {formatMessageTime(m.time)}
                       </p>
@@ -358,7 +432,14 @@ export function Messages({
               </div>
               <div className="p-4 border-t border-border">
                 <div className="flex gap-2">
-                  <Button variant="ghost" size="icon">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={handleAttachClick}
+                    disabled={sending || attachmentUploading}
+                    title="Joindre un fichier"
+                  >
                     <Paperclip className="w-5 h-5" />
                   </Button>
                   <Input
@@ -403,7 +484,14 @@ export function Messages({
                       <p className="text-sm text-destructive mb-2">{sendError}</p>
                     )}
                     <div className="flex gap-2">
-                      <Button type="button" variant="ghost" size="icon">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={handleAttachClick}
+                        disabled={sending || attachmentUploading}
+                        title="Joindre un fichier"
+                      >
                         <Paperclip className="w-5 h-5" />
                       </Button>
                       <Input

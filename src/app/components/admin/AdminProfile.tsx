@@ -1,11 +1,15 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { Card } from '@/app/components/ui/card';
-import { Mail, Shield, Pencil, Check, X } from 'lucide-react';
+import { Mail, Shield, Pencil, Check, X, Upload, Trash2 } from 'lucide-react';
 import { Button } from '@/app/components/ui/button';
 import { Input } from '@/app/components/ui/input';
 import { api } from '@/app/services/api';
 
-export function AdminProfile() {
+interface AdminProfileProps {
+  onProfileUpdated?: () => void;
+}
+
+export function AdminProfile({ onProfileUpdated }: AdminProfileProps = {}) {
   const [user, setUser] = useState<any | null>(null);
   const [company, setCompany] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
@@ -18,6 +22,9 @@ export function AdminProfile() {
   const [lastNameInput, setLastNameInput] = useState('');
   const [positionInput, setPositionInput] = useState('');
   const [phoneInput, setPhoneInput] = useState('');
+  const [uploading, setUploading] = useState<'avatar' | 'cover' | null>(null);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
+  const coverInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setLoading(true);
@@ -95,6 +102,79 @@ export function AdminProfile() {
     }
   };
 
+  const avatarDisplayUrl = user ? api.getUploadUrl(user.avatarUrl) || undefined : undefined;
+  const coverDisplayUrl = user ? api.getUploadUrl(user.coverUrl) || undefined : undefined;
+
+  const loadUser = () => {
+    api.getMe().then((u) => u && setUser(u)).catch(() => {});
+  };
+
+  const handleAvatarFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+    e.target.value = '';
+    setUploading('avatar');
+    setError(null);
+    try {
+      const { url } = await api.uploadProfilePhoto(file, 'avatar');
+      await api.updateMe({ avatarUrl: url });
+      loadUser();
+      onProfileUpdated?.();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erreur lors de l\'upload.');
+    } finally {
+      setUploading(null);
+    }
+  };
+
+  const handleCoverFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+    e.target.value = '';
+    setUploading('cover');
+    setError(null);
+    try {
+      const { url } = await api.uploadProfilePhoto(file, 'cover');
+      await api.updateMe({ coverUrl: url });
+      loadUser();
+      onProfileUpdated?.();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erreur lors de l\'upload.');
+    } finally {
+      setUploading(null);
+    }
+  };
+
+  const handleRemoveAvatar = async () => {
+    if (!user) return;
+    setUploading('avatar');
+    setError(null);
+    try {
+      await api.updateMe({ avatarUrl: null });
+      loadUser();
+      onProfileUpdated?.();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erreur.');
+    } finally {
+      setUploading(null);
+    }
+  };
+
+  const handleRemoveCover = async () => {
+    if (!user) return;
+    setUploading('cover');
+    setError(null);
+    try {
+      await api.updateMe({ coverUrl: null });
+      loadUser();
+      onProfileUpdated?.();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erreur.');
+    } finally {
+      setUploading(null);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-3">
@@ -152,12 +232,59 @@ export function AdminProfile() {
         </Card>
       )}
 
-      <Card className="p-6 space-y-4">
-        <div className="flex items-start gap-4">
-          <div className="w-12 h-12 rounded-full bg-primary flex items-center justify-center text-white">
-            <Shield className="w-6 h-6" />
+      <Card className="overflow-hidden">
+        <input
+          ref={coverInputRef}
+          type="file"
+          accept="image/jpeg,image/png,image/gif,image/webp"
+          className="hidden"
+          onChange={handleCoverFile}
+        />
+        <input
+          ref={avatarInputRef}
+          type="file"
+          accept="image/jpeg,image/png,image/gif,image/webp"
+          className="hidden"
+          onChange={handleAvatarFile}
+        />
+        <div
+          className="relative h-32 bg-gradient-to-r from-primary to-secondary group"
+          style={coverDisplayUrl ? { backgroundImage: `url(${coverDisplayUrl})`, backgroundSize: 'cover' } : undefined}
+        >
+          <div className="absolute inset-0 flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity bg-black/40">
+            <Button type="button" variant="secondary" size="sm" onClick={() => coverInputRef.current?.click()} disabled={!!uploading}>
+              <Upload className="w-4 h-4 mr-1" />
+              {uploading === 'cover' ? 'Envoi…' : 'Changer'}
+            </Button>
+            {(user.coverUrl || coverDisplayUrl) && (
+              <Button type="button" variant="secondary" size="sm" onClick={handleRemoveCover} disabled={!!uploading}>
+                <Trash2 className="w-4 h-4 mr-1" />
+                Supprimer
+              </Button>
+            )}
           </div>
-          <div className="flex-1 space-y-3">
+        </div>
+        <div className="p-6 -mt-10 relative space-y-4">
+          <div className="flex items-start gap-4">
+            <div className="relative inline-block group/avatar">
+              <div
+                className="w-20 h-20 rounded-full border-4 border-background bg-primary flex items-center justify-center text-xl font-semibold text-primary-foreground shrink-0 overflow-hidden"
+                style={avatarDisplayUrl ? { backgroundImage: `url(${avatarDisplayUrl})`, backgroundSize: 'cover' } : undefined}
+              >
+                {!avatarDisplayUrl && <Shield className="w-10 h-10" />}
+              </div>
+              <div className="absolute inset-0 flex items-center justify-center gap-1 rounded-full opacity-0 group-hover/avatar:opacity-100 transition-opacity bg-black/40">
+                <Button type="button" variant="secondary" size="icon" className="h-8 w-8" onClick={() => avatarInputRef.current?.click()} disabled={!!uploading} title="Changer la photo">
+                  <Upload className="w-4 h-4" />
+                </Button>
+                {(user.avatarUrl || avatarDisplayUrl) && (
+                  <Button type="button" variant="secondary" size="icon" className="h-8 w-8" onClick={handleRemoveAvatar} disabled={!!uploading} title="Supprimer la photo">
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                )}
+              </div>
+            </div>
+            <div className="flex-1 space-y-3">
             <div>
               <p className="text-sm text-muted-foreground mb-1">Adresse e-mail</p>
               {editing ? (
@@ -240,6 +367,7 @@ export function AdminProfile() {
               <p className="text-sm text-muted-foreground">
                 Entreprise&nbsp;: <span className="font-medium text-foreground">{companyName}</span>
               </p>
+            </div>
             </div>
           </div>
         </div>

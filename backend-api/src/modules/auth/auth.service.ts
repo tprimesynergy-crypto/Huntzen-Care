@@ -165,7 +165,11 @@ export class AuthService {
 
   async login(dto: LoginDto) {
     try {
-      const emailNormalized = dto.email?.trim().toLowerCase();
+      const emailNormalized = dto.email?.trim()?.toLowerCase();
+      if (!emailNormalized || typeof dto.password !== 'string') {
+        throw new UnauthorizedException('Invalid credentials');
+      }
+
       const user = await this.prisma.user.findUnique({
         where: { email: emailNormalized },
       });
@@ -179,6 +183,33 @@ export class AuthService {
         throw new UnauthorizedException('Invalid credentials');
       }
 
+      // Block login for users of an inactive company (except ADMIN_HUNTZEN and SUPER_ADMIN)
+      if (user.role !== 'ADMIN_HUNTZEN' && user.role !== 'SUPER_ADMIN') {
+        let companyId: string | null = user.companyId ?? null;
+        if (user.role === 'EMPLOYEE') {
+          const emp = await this.prisma.employee.findUnique({
+            where: { userId: user.id },
+            select: { companyId: true },
+          });
+          companyId = emp?.companyId ?? null;
+        } else if (user.role === 'PRACTITIONER') {
+          const prac = await this.prisma.practitioner.findUnique({
+            where: { userId: user.id },
+            select: { companyId: true },
+          });
+          companyId = prac?.companyId ?? null;
+        }
+        if (companyId) {
+          const company = await this.prisma.company.findUnique({
+            where: { id: companyId },
+            select: { isActive: true },
+          });
+          if (company && !company.isActive) {
+            throw new UnauthorizedException('Invalid credentials');
+          }
+        }
+      }
+
       const payload = { sub: user.id, email: user.email, role: user.role };
       const accessToken = this.jwtService.sign(payload);
 
@@ -189,12 +220,14 @@ export class AuthService {
         this.logger.warn(`lastLoginAt update failed for ${user.id}: ${err instanceof Error ? err.message : err}`);
       });
 
-      this.activityService.log({
+      await this.activityService.log({
         actorUserId: user.id,
         action: 'LOGIN',
         entityType: 'auth',
         details: user.email,
-      }).catch(() => {});
+      }).catch((err) => {
+        this.logger.warn(`Activity log failed for login: ${err instanceof Error ? err.message : String(err)}`);
+      });
 
       return {
         accessToken,
@@ -206,7 +239,7 @@ export class AuthService {
       };
     } catch (err) {
       if (err instanceof UnauthorizedException) throw err;
-      this.logger.error(`Login failed for ${dto.email}: ${err instanceof Error ? err.message : String(err)}`, err instanceof Error ? err.stack : undefined);
+      this.logger.error(`Login failed for ${dto.email ?? 'unknown'}: ${err instanceof Error ? err.message : String(err)}`, err instanceof Error ? err.stack : undefined);
       throw new InternalServerErrorException('Une erreur est survenue lors de la connexion.');
     }
   }
@@ -226,6 +259,8 @@ export class AuthService {
       lastName: string | null;
       phoneNumber: string | null;
       position: string | null;
+      avatarUrl: string | null;
+      coverUrl: string | null;
     } | null = null;
 
     if (
@@ -240,6 +275,8 @@ export class AuthService {
           lastName: true,
           phoneNumber: true,
           position: true,
+          avatarUrl: true,
+          coverUrl: true,
         },
       });
     }
@@ -253,6 +290,8 @@ export class AuthService {
       lastName: adminProfile?.lastName ?? null,
       phoneNumber: adminProfile?.phoneNumber ?? null,
       position: adminProfile?.position ?? null,
+      avatarUrl: adminProfile?.avatarUrl ?? null,
+      coverUrl: adminProfile?.coverUrl ?? null,
     };
   }
 
@@ -264,6 +303,8 @@ export class AuthService {
       lastName?: string;
       phoneNumber?: string;
       position?: string;
+      avatarUrl?: string | null;
+      coverUrl?: string | null;
     },
   ) {
     // Load user to know their role
@@ -315,6 +356,8 @@ export class AuthService {
       if (data.lastName !== undefined) profileData.lastName = data.lastName || null;
       if (data.phoneNumber !== undefined) profileData.phoneNumber = data.phoneNumber || null;
       if (data.position !== undefined) profileData.position = data.position || null;
+      if (data.avatarUrl !== undefined) profileData.avatarUrl = data.avatarUrl ?? null;
+      if (data.coverUrl !== undefined) profileData.coverUrl = data.coverUrl ?? null;
 
       // Only upsert if there is at least one profile-related field
       if (Object.keys(profileData).length > 0) {

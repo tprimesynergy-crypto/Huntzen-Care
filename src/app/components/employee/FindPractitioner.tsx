@@ -224,18 +224,22 @@ export function FindPractitioner({
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {visiblePractitioners.map((p) => {
             const name = `${p.title || ''} ${p.firstName} ${p.lastName}`.trim();
-            const avatar = `${p.firstName?.[0] || ''}${p.lastName?.[0] || ''}`.toUpperCase();
+            const avatarInitials = `${p.firstName?.[0] || ''}${p.lastName?.[0] || ''}`.toUpperCase();
             const specialtyLabel = SPECIALTY_LABELS[p.specialty] ?? p.specialty ?? '';
             const types: string[] = [];
             if (p.offersVideo) types.push('Visio');
             if (p.offersPhone) types.push('Téléphone');
             types.push('Présentiel');
             const isFavorite = favoriteIds.includes(p.id);
+            const avatarUrl = p.avatarUrl ? api.getUploadUrl(p.avatarUrl) : null;
             return (
               <Card key={p.id} className="p-6 hover:shadow-lg transition-shadow duration-200">
                 <div className="flex gap-4">
-                  <div className="w-20 h-20 bg-primary rounded-full flex items-center justify-center text-white text-xl font-semibold flex-shrink-0">
-                    {avatar}
+                  <div
+                    className="w-20 h-20 rounded-full flex items-center justify-center text-primary-foreground text-xl font-semibold flex-shrink-0 overflow-hidden bg-primary"
+                    style={avatarUrl ? { backgroundImage: `url(${avatarUrl})`, backgroundSize: 'cover' } : undefined}
+                  >
+                    {!avatarUrl && avatarInitials}
                   </div>
                   <div className="flex-1">
                     <div className="flex items-start justify-between mb-2">

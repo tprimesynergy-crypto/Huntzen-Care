@@ -38,6 +38,7 @@ type PractitionerRow = {
   bio: string;
   experience?: number | null;
   education?: string | null;
+  avatarUrl?: string | null;
   isActive: boolean;
   companyId: string | null;
   companyName: string | null;
@@ -273,8 +274,8 @@ export function AdminPractitioners({ onViewProfile }: AdminPractitionersProps) {
           <table className="min-w-full text-sm">
             <thead className="bg-muted/50">
               <tr>
-                <th className="px-3 py-2 text-left font-medium">Email</th>
                 <th className="px-3 py-2 text-left font-medium">Nom</th>
+                <th className="px-3 py-2 text-left font-medium">Email</th>
                 <th className="px-3 py-2 text-left font-medium">Spécialité</th>
                 <th className="px-3 py-2 text-left font-medium">Entreprise</th>
                 <th className="px-3 py-2 text-left font-medium">Statut</th>
@@ -288,10 +289,18 @@ export function AdminPractitioners({ onViewProfile }: AdminPractitionersProps) {
                   className={`border-t ${onViewProfile ? 'cursor-pointer hover:bg-muted/50' : ''}`}
                   onClick={onViewProfile ? () => onViewProfile(p.id) : undefined}
                 >
-                  <td className="px-3 py-2 font-medium">{p.email ?? '—'}</td>
                   <td className="px-3 py-2">
-                    {p.title} {p.firstName} {p.lastName}
+                    <div className="flex items-center gap-2">
+                      <div
+                        className="w-8 h-8 rounded-full shrink-0 flex items-center justify-center text-xs font-medium bg-muted text-muted-foreground overflow-hidden"
+                        style={p.avatarUrl ? { backgroundImage: `url(${api.getUploadUrl(p.avatarUrl)})`, backgroundSize: 'cover' } : undefined}
+                      >
+                        {!p.avatarUrl && (p.firstName?.[0] ?? p.lastName?.[0] ?? '?')}
+                      </div>
+                      {p.title} {p.firstName} {p.lastName}
+                    </div>
                   </td>
+                  <td className="px-3 py-2 font-medium">{p.email ?? '—'}</td>
                   <td className="px-3 py-2">
                     {p.specialty === 'OTHER' && p.customSpecialty
                       ? p.customSpecialty

@@ -11,7 +11,7 @@ import {
   DialogFooter,
   DialogDescription,
 } from '@/app/components/ui/dialog';
-import { Calendar, Clock, Video, MessageSquare, Star } from 'lucide-react';
+import { Calendar, Clock, Video, MessageSquare, Star, CheckCircle } from 'lucide-react';
 import { Textarea } from '@/app/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/app/components/ui/tabs';
 import { api } from '@/app/services/api';
@@ -29,7 +29,7 @@ function normalize(list: any[], now: Date, userRole?: string | null, ratedConsul
   const ratedSet = ratedConsultationIds ?? new Set<string>();
   
   const up = arr
-    .filter((c: any) => new Date(c.scheduledAt) >= now && c.status !== 'CANCELLED')
+    .filter((c: any) => new Date(c.scheduledAt) >= now && c.status !== 'CANCELLED' && c.status !== 'COMPLETED')
     .sort((a: any, b: any) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime())
     .map((c: any) => {
       // In dev: always allow joining. In prod: only 10 minutes before
@@ -73,8 +73,8 @@ function normalize(list: any[], now: Date, userRole?: string | null, ratedConsul
       };
     });
   const pa = arr
-    // Only keep consultations réellement effectuées (exclut les rendez-vous annulés)
-    .filter((c: any) => new Date(c.scheduledAt) < now && c.status !== 'CANCELLED')
+    // Passées = date dépassée OU statut COMPLETED (exclut annulés)
+    .filter((c: any) => (new Date(c.scheduledAt) < now || c.status === 'COMPLETED') && c.status !== 'CANCELLED')
     .sort((a: any, b: any) => new Date(b.scheduledAt).getTime() - new Date(a.scheduledAt).getTime())
     .map((c: any) => {
       // For practitioners: show employee info. For employees: show practitioner info
@@ -309,6 +309,28 @@ export function MyAppointments({ onNavigate, onNavigateToMessages, userRole }: M
                           }}
                         >
                           Confirmer le rendez-vous
+                        </Button>
+                      )}
+                      {userRole === 'PRACTITIONER' && (
+                        <Button
+                          variant="outline"
+                          className="text-emerald-600 border-emerald-600 hover:bg-emerald-50 hover:!text-emerald-700"
+                          onClick={async () => {
+                            try {
+                              await api.completeConsultation(a.id);
+                              await load();
+                            } catch (err) {
+                              console.error(err);
+                              window.alert(
+                                err instanceof Error
+                                    ? err.message
+                                    : 'Erreur lors de la clôture du rendez-vous.',
+                              );
+                            }
+                          }}
+                        >
+                          <CheckCircle className="w-4 h-4 mr-2" />
+                          Marquer comme terminée
                         </Button>
                       )}
                       <Button
