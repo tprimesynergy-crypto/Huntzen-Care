@@ -70,7 +70,9 @@ export function EmployeeDashboard({ onNavigate, onViewArticle }: EmployeeDashboa
           title: n.title,
           category: 'Bien-être',
           readTime: `${Math.max(1, Math.ceil((n.content?.length || 0) / 200))} min`,
-          image: n.imageUrl || 'https://images.unsplash.com/photo-1506126613408-eca07ce68773?w=400',
+          image:
+            (n.imageUrl && (api.getUploadUrl(n.imageUrl) ?? n.imageUrl)) ||
+            'https://images.unsplash.com/photo-1506126613408-eca07ce68773?w=400',
         }))
       );
 

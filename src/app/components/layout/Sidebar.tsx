@@ -135,8 +135,8 @@ export function Sidebar({ activeTab, onTabChange, onEmergencyClick, onLogout, pr
     <div className="flex flex-col h-screen w-64 bg-sidebar text-sidebar-foreground overflow-y-auto">
       <div className="p-6 border-b border-sidebar-border">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-sidebar-primary rounded-lg flex items-center justify-center text-sidebar-primary-foreground">
-            <Heart className="w-6 h-6" />
+          <div className="w-14 h-14 rounded-lg flex items-center justify-center overflow-hidden bg-white p-1">
+            <img src="/huntzen-logo.png" alt="HuntZen" className="w-full h-full object-contain" />
           </div>
           <div>
             <h2 className="text-xl font-semibold text-sidebar-foreground">HuntZen</h2>
